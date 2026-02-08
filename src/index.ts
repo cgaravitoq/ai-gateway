@@ -1,8 +1,16 @@
 import { Hono } from "hono";
+import { errorHandler } from "@/middleware/error-handler.ts";
+import { logger, requestLogger } from "@/middleware/logging.ts";
 import { chat } from "@/routes/chat.ts";
 import { health } from "@/routes/health.ts";
 
 const app = new Hono();
+
+// Global middleware
+app.use(requestLogger());
+
+// Global error handler
+app.onError(errorHandler);
 
 // Mount routes
 app.route("/", health);
@@ -38,4 +46,4 @@ export default {
 	fetch: app.fetch,
 };
 
-console.log(`AI Gateway running on http://localhost:${port}`);
+logger.info({ port }, `AI Gateway running on http://localhost:${port}`);
