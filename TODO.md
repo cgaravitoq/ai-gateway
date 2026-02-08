@@ -1,0 +1,64 @@
+# TODO — AI Gateway
+
+## Phase 1: Local Development ✅
+- [x] Initialize TypeScript project (Bun + Hono)
+- [x] Create basic `/v1/chat/completions` endpoint (OpenAI-compatible)
+- [x] Implement OpenAI provider adapter
+- [x] Implement Anthropic provider adapter
+- [x] Implement Google/Gemini provider adapter
+- [x] Add basic routing logic (config-based + auto-detection)
+- [x] Docker setup for local development
+- [x] Streaming support (SSE with OpenAI-compatible format)
+- [x] Request validation (Zod)
+- [x] Logging middleware (Pino, GCP-compatible)
+- [x] Error handling middleware (OpenAI error format)
+
+## Phase 2: Semantic Cache
+- [ ] Set up Redis client (node-redis) with connection management
+- [ ] Implement embedding generation for prompts
+- [ ] Create vector index in Redis Stack (HNSW, COSINE)
+- [ ] Implement cache lookup (KNN vector search)
+- [ ] Implement cache storage on response
+- [ ] Add cache hit/miss metrics
+- [ ] Configure TTL and similarity threshold
+- [ ] Add `X-Skip-Cache` header support
+- [ ] Wire cache as Hono middleware
+
+## Phase 3: Smart Routing
+- [ ] Define routing rules (cost, latency, model capability)
+- [ ] Implement model selector based on request metadata
+- [ ] Add fallback logic (retry with different provider on 5xx/429)
+- [ ] Add rate limiting per provider (token bucket)
+- [ ] Implement request timeout handling
+- [ ] Track provider latency for least-latency routing
+
+## Phase 4: Observability
+- [ ] Structured logging (request/response) — ✅ Partially done in Phase 1
+- [ ] Cost tracking per request (input/output tokens × pricing)
+- [ ] Latency metrics per provider
+- [ ] Error tracking and alerting
+- [ ] Simple dashboard endpoint (`/metrics`)
+- [ ] OpenTelemetry integration (experimental)
+
+## Phase 5: Kubernetes (GKE)
+- [ ] Create Dockerfile (multi-stage build) — ✅ Done in Phase 1
+- [ ] Create K8s manifests:
+  - [ ] Namespace (`ai-gateway`)
+  - [ ] Deployment + Service (gateway)
+  - [ ] StatefulSet + Service (Redis Stack)
+  - [ ] ConfigMap (routing rules)
+  - [ ] Secret (API keys template)
+  - [ ] HPA (autoscaling)
+  - [ ] Network Policies
+- [ ] Push images to Artifact Registry
+- [ ] Deploy to GKE Autopilot
+- [ ] Test with external LoadBalancer IP
+- [ ] Document deployment process
+
+## Phase 6: Polish
+- [ ] API documentation (OpenAPI/Swagger)
+- [ ] Health check endpoints (`/health`, `/ready`) — ✅ Done in Phase 1
+- [ ] Graceful shutdown
+- [ ] README with demo GIFs
+- [ ] Blog post / project write-up
+- [ ] Tests (unit + integration)

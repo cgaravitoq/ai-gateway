@@ -48,60 +48,6 @@ A production-ready AI Gateway that routes requests to multiple LLM providers, im
 └─────────────────────────────────────────────────────┘
 ```
 
-## 📋 TODO List
-
-### Phase 1: Local Development
-- [ ] Initialize TypeScript project (Bun + Hono)
-- [ ] Create basic `/v1/chat/completions` endpoint (OpenAI-compatible)
-- [ ] Implement OpenAI provider adapter
-- [ ] Implement Gemini provider adapter
-- [ ] Add basic routing logic (round-robin or config-based)
-- [ ] Docker setup for local development
-- [ ] Local testing with curl/Postman
-
-### Phase 2: Semantic Cache
-- [ ] Set up Redis locally (docker-compose)
-- [ ] Implement embedding generation for prompts
-- [ ] Implement cache lookup (cosine similarity)
-- [ ] Implement cache storage on response
-- [ ] Add cache hit/miss metrics
-- [ ] Configure TTL and similarity threshold
-
-### Phase 3: Smart Routing
-- [ ] Define routing rules (cost, latency, model capability)
-- [ ] Implement model selector based on request metadata
-- [ ] Add fallback logic (retry with different provider)
-- [ ] Add rate limiting per provider
-- [ ] Implement request timeout handling
-
-### Phase 4: Observability
-- [ ] Structured logging (request/response)
-- [ ] Cost tracking per request (input/output tokens)
-- [ ] Latency metrics
-- [ ] Error tracking and alerting
-- [ ] Simple dashboard endpoint (`/metrics`)
-
-### Phase 5: Kubernetes (GKE)
-- [ ] Create Dockerfile (multi-stage build)
-- [ ] Create K8s manifests:
-  - [ ] Namespace (`ai-gateway`)
-  - [ ] Deployment + Service (gateway)
-  - [ ] StatefulSet + Service (Redis)
-  - [ ] ConfigMap (routing rules)
-  - [ ] Secret (API keys)
-  - [ ] HPA (autoscaling)
-- [ ] Push images to Artifact Registry
-- [ ] Deploy to GKE Autopilot
-- [ ] Test with external LoadBalancer IP
-- [ ] Document deployment process
-
-### Phase 6: Polish
-- [ ] API documentation (OpenAPI/Swagger)
-- [ ] Health check endpoints (`/health`, `/ready`)
-- [ ] Graceful shutdown
-- [ ] README with demo GIFs
-- [ ] Blog post / project write-up
-
 ## 🛠️ Tech Stack
 
 ### Backend

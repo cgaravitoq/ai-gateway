@@ -26,7 +26,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./src:/app/src  # Hot reload in dev
+      - ./src:/usr/src/app/src  # Hot reload in dev
 
 volumes:
   redis_data:
