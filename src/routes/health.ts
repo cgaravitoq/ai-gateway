@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cacheConfig } from "@/config/cache.ts";
 import { isRedisHealthy } from "@/services/cache/redis.ts";
+import { getMetrics } from "@/services/metrics.ts";
 
 const health = new Hono();
 
@@ -28,6 +29,10 @@ health.get("/ready", async (c) => {
 		},
 		statusCode,
 	);
+});
+
+health.get("/metrics", (c) => {
+	return c.json(getMetrics());
 });
 
 export { health };

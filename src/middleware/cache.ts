@@ -2,6 +2,13 @@ import type { MiddlewareHandler } from "hono";
 import { cacheConfig } from "@/config/cache.ts";
 import { logger } from "@/middleware/logging.ts";
 import { cacheResponse, semanticSearch } from "@/services/cache/semantic-cache.ts";
+import {
+	recordCacheError,
+	recordCacheHit,
+	recordCacheMiss,
+	recordCacheSkip,
+	recordRequest,
+} from "@/services/metrics.ts";
 import type { ChatCompletionResponse } from "@/types/index.ts";
 
 /**
@@ -17,9 +24,12 @@ import type { ChatCompletionResponse } from "@/types/index.ts";
  */
 export function semanticCacheMiddleware(): MiddlewareHandler {
 	return async (c, next) => {
+		recordRequest();
+
 		// Skip if cache is disabled
 		if (!cacheConfig.enabled) {
 			c.header("X-Cache", "DISABLED");
+			recordCacheSkip();
 			await next();
 			return;
 		}
@@ -27,6 +37,7 @@ export function semanticCacheMiddleware(): MiddlewareHandler {
 		// Skip if explicitly requested via header
 		if (c.req.header("X-Skip-Cache") === "true") {
 			c.header("X-Cache", "SKIP");
+			recordCacheSkip();
 			await next();
 			return;
 		}
@@ -59,10 +70,12 @@ export function semanticCacheMiddleware(): MiddlewareHandler {
 		}
 
 		// --- Cache Lookup ---
+		const cacheStart = Date.now();
 		try {
 			const cacheResult = await semanticSearch(body.messages, body.model);
 
 			if (cacheResult.hit && cacheResult.response) {
+				recordCacheHit(Date.now() - cacheStart);
 				logger.info(
 					{ model: body.model, score: cacheResult.score?.toFixed(4) },
 					"Returning cached response",
@@ -92,6 +105,7 @@ export function semanticCacheMiddleware(): MiddlewareHandler {
 				return c.json(cachedResponse);
 			}
 		} catch (err) {
+			recordCacheError();
 			logger.error(
 				{ err: err instanceof Error ? err.message : String(err) },
 				"Cache lookup failed — proceeding without cache",
@@ -99,6 +113,7 @@ export function semanticCacheMiddleware(): MiddlewareHandler {
 		}
 
 		// --- Cache Miss: proceed to LLM ---
+		recordCacheMiss(Date.now() - cacheStart);
 		c.header("X-Cache", "MISS");
 		await next();
 
