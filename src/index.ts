@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cacheConfig } from "@/config/cache.ts";
+import { semanticCacheMiddleware } from "@/middleware/cache.ts";
 import { errorHandler } from "@/middleware/error-handler.ts";
 import { logger, requestLogger } from "@/middleware/logging.ts";
 import { chat } from "@/routes/chat.ts";
@@ -11,6 +12,9 @@ const app = new Hono();
 
 // Global middleware
 app.use(requestLogger());
+
+// Semantic cache middleware (before chat route)
+app.use("/v1/*", semanticCacheMiddleware());
 
 // Global error handler
 app.onError(errorHandler);
