@@ -4,6 +4,7 @@ import { semanticCacheMiddleware } from "@/middleware/cache.ts";
 import { errorHandler } from "@/middleware/error-handler.ts";
 import { logger, requestLogger } from "@/middleware/logging.ts";
 import { rateLimiter } from "@/middleware/rate-limiter.ts";
+import { smartRouter } from "@/middleware/smart-router.ts";
 import { timeoutMiddleware } from "@/middleware/timeout.ts";
 import { chat } from "@/routes/chat.ts";
 import { health } from "@/routes/health.ts";
@@ -15,13 +16,10 @@ const app = new Hono();
 // Global middleware
 app.use(requestLogger());
 
-// Per-provider rate limiting (before cache + routes)
+// Middleware chain: rate limiter → timeout → smart router → semantic cache
 app.use("/v1/*", rateLimiter());
-
-// Timeout middleware (before cache and route handlers)
 app.use("/v1/*", timeoutMiddleware(30_000));
-
-// Semantic cache middleware (before chat route)
+app.use("/v1/*", smartRouter());
 app.use("/v1/*", semanticCacheMiddleware());
 
 // Global error handler
