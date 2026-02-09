@@ -4,6 +4,7 @@ import { semanticCacheMiddleware } from "@/middleware/cache.ts";
 import { errorHandler } from "@/middleware/error-handler.ts";
 import { logger, requestLogger } from "@/middleware/logging.ts";
 import { rateLimiter } from "@/middleware/rate-limiter.ts";
+import { timeoutMiddleware } from "@/middleware/timeout.ts";
 import { chat } from "@/routes/chat.ts";
 import { health } from "@/routes/health.ts";
 import { ensureVectorIndex } from "@/services/cache/index-setup.ts";
@@ -16,6 +17,9 @@ app.use(requestLogger());
 
 // Per-provider rate limiting (before cache + routes)
 app.use("/v1/*", rateLimiter());
+
+// Timeout middleware (before cache and route handlers)
+app.use("/v1/*", timeoutMiddleware(30_000));
 
 // Semantic cache middleware (before chat route)
 app.use("/v1/*", semanticCacheMiddleware());
