@@ -13,16 +13,16 @@
 - [x] Logging middleware (Pino, GCP-compatible)
 - [x] Error handling middleware (OpenAI error format)
 
-## Phase 2: Semantic Cache
-- [ ] Set up Redis client (node-redis) with connection management
-- [ ] Implement embedding generation for prompts
-- [ ] Create vector index in Redis Stack (HNSW, COSINE)
-- [ ] Implement cache lookup (KNN vector search)
-- [ ] Implement cache storage on response
-- [ ] Add cache hit/miss metrics
-- [ ] Configure TTL and similarity threshold
-- [ ] Add `X-Skip-Cache` header support
-- [ ] Wire cache as Hono middleware
+## Phase 2: Semantic Cache ✅
+- [x] Set up Redis client (node-redis) with connection management
+- [x] Implement embedding generation for prompts
+- [x] Create vector index in Redis Stack (HNSW, COSINE)
+- [x] Implement cache lookup (KNN vector search)
+- [x] Implement cache storage on response
+- [x] Add cache hit/miss metrics
+- [x] Configure TTL and similarity threshold
+- [x] Add `X-Skip-Cache` header support
+- [x] Wire cache as Hono middleware
 
 ## Phase 3: Smart Routing
 - [ ] Define routing rules (cost, latency, model capability)
