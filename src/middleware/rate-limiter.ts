@@ -98,6 +98,9 @@ export function rateLimiter(): MiddlewareHandler {
 		}
 
 		// --- Parse model from request body ---
+		// NOTE: Hono's `c.req.json()` caches the parsed result internally, so
+		// multiple middleware (rate-limiter, cache, etc.) calling it is safe and
+		// does not consume the body stream more than once.
 		let model: string | undefined;
 		try {
 			const body = await c.req.json();

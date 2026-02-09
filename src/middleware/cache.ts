@@ -55,6 +55,9 @@ export function semanticCacheMiddleware(): MiddlewareHandler {
 		};
 
 		try {
+			// NOTE: Hono's `c.req.json()` caches the parsed result internally, so
+			// multiple middleware (rate-limiter, cache, etc.) calling it is safe and
+			// does not consume the body stream more than once.
 			body = await c.req.json();
 		} catch {
 			// Can't parse body — skip cache and let the route handler deal with it

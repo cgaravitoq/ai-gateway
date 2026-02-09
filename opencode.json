@@ -1,19 +1,19 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "theme": "dark",
-  "model": "anthropic/claude-opus-4-6",
-  "agent": {
-    "coder": {
-      "description": "Senior TypeScript/Bun/Hono engineer building an AI Gateway",
-      "mode": "primary",
-      "prompt": "Read AGENTS.md first. Follow all conventions. Use Bun, Hono, Vercel AI SDK. Check docs/research/ for architecture patterns. Load skills on-demand when working with specific technologies."
-    }
-  },
-  "mcp": {
-    "context7": {
-      "type": "local",
-      "command": ["npx", "-y", "@upstash/context7-mcp@latest"],
-      "enabled": true
-    }
-  }
+	"$schema": "https://opencode.ai/config.json",
+	"theme": "dark",
+	"model": "anthropic/claude-opus-4-6",
+	"agent": {
+		"coder": {
+			"description": "Senior TypeScript/Bun/Hono engineer building an AI Gateway",
+			"mode": "primary",
+			"prompt": "Read AGENTS.md first. Follow all conventions. Use Bun, Hono, Vercel AI SDK. Check docs/research/ for architecture patterns. Load skills on-demand when working with specific technologies."
+		}
+	},
+	"mcp": {
+		"context7": {
+			"type": "local",
+			"command": ["npx", "-y", "@upstash/context7-mcp@latest"],
+			"enabled": true
+		}
+	}
 }
