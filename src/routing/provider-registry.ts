@@ -78,20 +78,20 @@ export class ProviderRegistry {
 	// ── Mutations ───────────────────────────────────────────
 
 	/** Record a successful request — resets the circuit breaker. */
-	reportSuccess(provider: ProviderName, latencyMs: number): void {
+	reportSuccess(provider: ProviderName, modelId: string, latencyMs: number): void {
 		const entry = this.providers.get(provider);
 		if (!entry) return;
 
 		entry.consecutiveErrors = 0;
 		entry.circuitOpenedAt = null;
 
-		latencyTracker.record(provider, latencyMs, true);
+		latencyTracker.recordLatency(provider, modelId, latencyMs, latencyMs, true);
 
-		logger.debug({ provider, latencyMs }, "provider success recorded");
+		logger.debug({ provider, modelId, latencyMs }, "provider success recorded");
 	}
 
 	/** Record a failed request — may trip the circuit breaker. */
-	reportError(provider: ProviderName, error: unknown): void {
+	reportError(provider: ProviderName, modelId: string, error: unknown): void {
 		const entry = this.providers.get(provider);
 		if (!entry) return;
 
@@ -99,7 +99,7 @@ export class ProviderRegistry {
 		entry.consecutiveErrors += 1;
 		entry.lastErrorAt = now;
 
-		latencyTracker.record(provider, 0, false);
+		latencyTracker.recordLatency(provider, modelId, 0, 0, false);
 
 		// Trip the circuit breaker when the threshold is reached
 		if (entry.consecutiveErrors >= CIRCUIT_BREAKER_THRESHOLD && entry.circuitOpenedAt === null) {
@@ -155,5 +155,6 @@ export class ProviderRegistry {
 	}
 }
 
+// TODO: Replace hardcoded provider list with dynamic discovery from config/environment
 /** Default singleton initialised with all known providers. */
 export const providerRegistry = new ProviderRegistry(["openai", "anthropic", "google"]);

@@ -106,10 +106,11 @@ export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 		if (selected) {
 			const status = c.res.status;
 			if (status >= 200 && status < 400) {
-				providerRegistry.reportSuccess(selected.provider, latencyMs);
+				providerRegistry.reportSuccess(selected.provider, selected.modelId, latencyMs);
 			} else {
 				providerRegistry.reportError(
 					selected.provider,
+					selected.modelId,
 					new Error(`Downstream responded with status ${status}`),
 				);
 			}

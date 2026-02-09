@@ -32,8 +32,8 @@ export class ModelSelector {
 		this.rulesEngine = new RoutingRulesEngine(DEFAULT_ROUTING_RULES, MODEL_PRICING);
 		this.fallbackHandler = new FallbackHandler({
 			maxRetries: config.maxRetries,
-			backoffBaseMs: config.retryBackoffBaseMs,
-			timeoutMs: config.defaultTimeoutMs,
+			baseBackoffMs: config.retryBackoffBaseMs,
+			totalTimeoutMs: config.defaultTimeoutMs,
 		});
 	}
 
@@ -49,8 +49,7 @@ export class ModelSelector {
 		const providerStates = providerRegistry.getProviderStates();
 
 		// 2. Score & rank with the rules engine
-		const strategy = request.routingHints?.strategy ?? config.defaultStrategy;
-		const ranked: RankedProvider[] = this.rulesEngine.evaluate(request, providerStates, strategy);
+		const ranked: RankedProvider[] = this.rulesEngine.evaluate(request, providerStates);
 
 		// 3. Filter by availability (circuit breaker) and rate-limit headroom
 		const available = ranked.filter((r: RankedProvider) => {
@@ -75,8 +74,8 @@ export class ModelSelector {
 		available.sort((a: RankedProvider, b: RankedProvider) => {
 			if (a.score !== b.score) return b.score - a.score; // higher score first
 
-			const latA = latencyTracker.getStats(a.provider)?.emaMs ?? Number.POSITIVE_INFINITY;
-			const latB = latencyTracker.getStats(b.provider)?.emaMs ?? Number.POSITIVE_INFINITY;
+			const latA = latencyTracker.getStats(a.provider).emaMs || Number.POSITIVE_INFINITY;
+			const latB = latencyTracker.getStats(b.provider).emaMs || Number.POSITIVE_INFINITY;
 			return latA - latB; // lower latency first
 		});
 
@@ -116,9 +115,8 @@ export class ModelSelector {
 	): Promise<T> {
 		// Build the ordered candidate list once
 		const providerStates = providerRegistry.getProviderStates();
-		const strategy = request.routingHints?.strategy ?? config.defaultStrategy;
 		const ranked: RankedProvider[] = this.rulesEngine
-			.evaluate(request, providerStates, strategy)
+			.evaluate(request, providerStates)
 			.filter((r: RankedProvider) => {
 				const state = providerStates.find((s: ProviderState) => s.id === r.provider);
 				return state?.available && (state.rateLimitRemaining ?? 0) > 0;
@@ -133,22 +131,34 @@ export class ModelSelector {
 		// Sort with latency tiebreaker
 		ranked.sort((a: RankedProvider, b: RankedProvider) => {
 			if (a.score !== b.score) return b.score - a.score;
-			const latA = latencyTracker.getStats(a.provider)?.emaMs ?? Number.POSITIVE_INFINITY;
-			const latB = latencyTracker.getStats(b.provider)?.emaMs ?? Number.POSITIVE_INFINITY;
+			const latA = latencyTracker.getStats(a.provider).emaMs || Number.POSITIVE_INFINITY;
+			const latB = latencyTracker.getStats(b.provider).emaMs || Number.POSITIVE_INFINITY;
 			return latA - latB;
 		});
 
-		return this.fallbackHandler.execute(ranked, async (candidate: RankedProvider) => {
-			const start = Date.now();
-			try {
-				const result = await executeFn(candidate.provider, candidate.modelId);
-				providerRegistry.reportSuccess(candidate.provider, Date.now() - start);
-				return result;
-			} catch (error) {
-				providerRegistry.reportError(candidate.provider, error);
-				throw error; // re-throw so fallback handler can try next
-			}
-		});
+		// Map ranked providers to string[] for the fallback handler API
+		const providerIds = ranked.map((r) => r.provider);
+		// Build a lookup so the execute function can resolve modelId from provider name
+		const providerModelMap = new Map(ranked.map((r) => [r.provider, r.modelId]));
+
+		const result = await this.fallbackHandler.executeWithFallback(
+			providerIds,
+			async (provider: string, _signal: AbortSignal) => {
+				const modelId = providerModelMap.get(provider as ProviderName) ?? request.model;
+				const start = Date.now();
+				try {
+					const execResult = await executeFn(provider as ProviderName, modelId);
+					providerRegistry.reportSuccess(provider as ProviderName, modelId, Date.now() - start);
+					return execResult;
+				} catch (error) {
+					providerRegistry.reportError(provider as ProviderName, modelId, error);
+					throw error; // re-throw so fallback handler can try next
+				}
+			},
+			{ streaming: request.stream },
+		);
+
+		return result.result;
 	}
 }
 
