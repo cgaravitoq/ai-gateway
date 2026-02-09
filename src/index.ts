@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cacheConfig } from "@/config/cache.ts";
+import { env } from "@/config/env.ts";
 import { semanticCacheMiddleware } from "@/middleware/cache.ts";
 import { errorHandler } from "@/middleware/error-handler.ts";
 import { logger, requestLogger } from "@/middleware/logging.ts";
@@ -52,7 +53,7 @@ app.notFound((c) => {
 	);
 });
 
-const port = Number.parseInt(process.env.PORT || "3000", 10);
+const port = env.PORT;
 
 export default {
 	port,

@@ -1,15 +1,15 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
+import { env } from "@/config/env.ts";
 
 let instance: ReturnType<typeof createGoogleGenerativeAI> | null = null;
 
 function getProvider(): ReturnType<typeof createGoogleGenerativeAI> {
 	if (!instance) {
-		const apiKey = process.env.GOOGLE_API_KEY;
-		if (!apiKey) {
+		if (!env.GOOGLE_API_KEY) {
 			throw new Error("GOOGLE_API_KEY is not configured");
 		}
-		instance = createGoogleGenerativeAI({ apiKey });
+		instance = createGoogleGenerativeAI({ apiKey: env.GOOGLE_API_KEY });
 	}
 	return instance;
 }

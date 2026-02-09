@@ -1,15 +1,15 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
+import { env } from "@/config/env.ts";
 
 let instance: ReturnType<typeof createAnthropic> | null = null;
 
 function getProvider(): ReturnType<typeof createAnthropic> {
 	if (!instance) {
-		const apiKey = process.env.ANTHROPIC_API_KEY;
-		if (!apiKey) {
+		if (!env.ANTHROPIC_API_KEY) {
 			throw new Error("ANTHROPIC_API_KEY is not configured");
 		}
-		instance = createAnthropic({ apiKey });
+		instance = createAnthropic({ apiKey: env.ANTHROPIC_API_KEY });
 	}
 	return instance;
 }

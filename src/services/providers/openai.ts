@@ -1,15 +1,12 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
+import { env } from "@/config/env.ts";
 
 let instance: ReturnType<typeof createOpenAI> | null = null;
 
 function getProvider(): ReturnType<typeof createOpenAI> {
 	if (!instance) {
-		const apiKey = process.env.OPENAI_API_KEY;
-		if (!apiKey) {
-			throw new Error("OPENAI_API_KEY is not configured");
-		}
-		instance = createOpenAI({ apiKey });
+		instance = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 	}
 	return instance;
 }

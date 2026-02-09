@@ -1,22 +1,18 @@
 import OpenAI from "openai";
 import { cacheConfig } from "@/config/cache.ts";
+import { env } from "@/config/env.ts";
 import { logger } from "@/middleware/logging.ts";
 
 let openaiClient: OpenAI | null = null;
 
 /**
  * Get or create the OpenAI client for embedding generation.
- * Uses OPENAI_API_KEY from environment (already required by the gateway).
+ * Uses OPENAI_API_KEY from validated environment.
  */
 function getOpenAIClient(): OpenAI {
 	if (openaiClient) return openaiClient;
 
-	const apiKey = process.env.OPENAI_API_KEY;
-	if (!apiKey) {
-		throw new Error("OPENAI_API_KEY is required for embedding generation");
-	}
-
-	openaiClient = new OpenAI({ apiKey });
+	openaiClient = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 	return openaiClient;
 }
 

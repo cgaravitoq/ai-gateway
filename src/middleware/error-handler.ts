@@ -1,5 +1,6 @@
 import { APICallError } from "ai";
 import type { ErrorHandler } from "hono";
+import { env } from "@/config/env.ts";
 import type { GatewayError } from "@/types/index.ts";
 import { logger } from "./logging.ts";
 
@@ -32,7 +33,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
 	// Handle generic errors
 	const errorResponse: GatewayError = {
 		error: {
-			message: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+			message: env.NODE_ENV === "development" ? err.message : "Internal server error",
 			type: "internal_error",
 			code: "internal_error",
 		},
