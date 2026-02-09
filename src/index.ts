@@ -3,6 +3,7 @@ import { cacheConfig } from "@/config/cache.ts";
 import { semanticCacheMiddleware } from "@/middleware/cache.ts";
 import { errorHandler } from "@/middleware/error-handler.ts";
 import { logger, requestLogger } from "@/middleware/logging.ts";
+import { rateLimiter } from "@/middleware/rate-limiter.ts";
 import { chat } from "@/routes/chat.ts";
 import { health } from "@/routes/health.ts";
 import { ensureVectorIndex } from "@/services/cache/index-setup.ts";
@@ -12,6 +13,9 @@ const app = new Hono();
 
 // Global middleware
 app.use(requestLogger());
+
+// Per-provider rate limiting (before cache + routes)
+app.use("/v1/*", rateLimiter());
 
 // Semantic cache middleware (before chat route)
 app.use("/v1/*", semanticCacheMiddleware());
