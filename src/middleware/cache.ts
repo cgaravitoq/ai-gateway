@@ -1,3 +1,4 @@
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { MiddlewareHandler } from "hono";
 import { cacheConfig } from "@/config/cache.ts";
 import { logger } from "@/middleware/logging.ts";
@@ -9,6 +10,7 @@ import {
 	recordCacheSkip,
 	recordRequest,
 } from "@/services/metrics.ts";
+import { getTracer } from "@/telemetry/setup.ts";
 import type { ChatCompletionResponse } from "@/types/index.ts";
 
 /**
@@ -72,17 +74,38 @@ export function semanticCacheMiddleware(): MiddlewareHandler {
 			return;
 		}
 
-		// --- Cache Lookup ---
+		// --- Cache Lookup (with tracing) ---
 		const cacheStart = Date.now();
+
+		// Create a child span for cache operations (graceful no-op if tracing is off)
+		const parentSpan = trace.getSpan(context.active());
+		const tracer = getTracer();
+		const cacheSpan = tracer.startSpan(
+			"gateway.cache",
+			{
+				attributes: { "cache.hit": false },
+			},
+			parentSpan ? trace.setSpan(context.active(), parentSpan) : undefined,
+		);
+
 		try {
 			const cacheResult = await semanticSearch(body.messages, body.model);
+			const cacheLatencyMs = Date.now() - cacheStart;
 
 			if (cacheResult.hit && cacheResult.response) {
-				recordCacheHit(Date.now() - cacheStart);
+				recordCacheHit(cacheLatencyMs);
 				logger.info(
 					{ model: body.model, score: cacheResult.score?.toFixed(4) },
 					"Returning cached response",
 				);
+
+				cacheSpan.setAttributes({
+					"cache.hit": true,
+					"cache.similarity": cacheResult.score ?? 0,
+					"cache.latency_ms": cacheLatencyMs,
+				});
+				cacheSpan.setStatus({ code: SpanStatusCode.OK });
+				cacheSpan.end();
 
 				const cachedResponse: ChatCompletionResponse = {
 					id: `chatcmpl-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`,
@@ -113,10 +136,21 @@ export function semanticCacheMiddleware(): MiddlewareHandler {
 				{ err: err instanceof Error ? err.message : String(err) },
 				"Cache lookup failed — proceeding without cache",
 			);
+			cacheSpan.setStatus({ code: SpanStatusCode.ERROR });
+			if (err instanceof Error) {
+				cacheSpan.recordException(err);
+			}
 		}
 
 		// --- Cache Miss: proceed to LLM ---
-		recordCacheMiss(Date.now() - cacheStart);
+		const missLatencyMs = Date.now() - cacheStart;
+		recordCacheMiss(missLatencyMs);
+		cacheSpan.setAttributes({
+			"cache.hit": false,
+			"cache.latency_ms": missLatencyMs,
+		});
+		cacheSpan.setStatus({ code: SpanStatusCode.OK });
+		cacheSpan.end();
 		c.header("X-Cache", "MISS");
 		await next();
 
