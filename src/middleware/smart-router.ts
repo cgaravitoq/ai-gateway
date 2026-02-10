@@ -1,9 +1,11 @@
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { MiddlewareHandler } from "hono";
 import type { ProviderName } from "@/config/providers.ts";
 import { logger } from "@/middleware/logging.ts";
 import { modelSelector } from "@/routing/model-selector.ts";
 import { providerRegistry } from "@/routing/provider-registry.ts";
 import { errorTracker } from "@/services/error-tracker.ts";
+import { getTracer } from "@/telemetry/setup.ts";
 import type { RankedProvider, RequestMetadata } from "@/types/routing.ts";
 
 /**
@@ -58,14 +60,35 @@ export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 			routingHints: parseRoutingHints(c),
 		};
 
-		// ── 3. Select provider ──────────────────────────────
+		// ── 3. Select provider (with tracing) ────────────────
 		const startTime = Date.now();
+
+		// Create a child span for routing decision
+		const parentSpan = trace.getSpan(context.active());
+		const tracer = getTracer();
+		const routingSpan = tracer.startSpan(
+			"gateway.routing",
+			{
+				attributes: { "routing.model_requested": model },
+			},
+			parentSpan ? trace.setSpan(context.active(), parentSpan) : undefined,
+		);
 
 		try {
 			const selected = await modelSelector.selectProvider(requestMetadata);
+			const routingLatencyMs = Date.now() - startTime;
 
 			c.set("selectedProvider", selected);
 			c.set("routeStartTime", startTime);
+
+			routingSpan.setAttributes({
+				provider: selected.provider,
+				model: selected.modelId,
+				"routing.strategy": requestMetadata.routingHints?.strategy ?? "balanced",
+				"routing.latency_ms": routingLatencyMs,
+			});
+			routingSpan.setStatus({ code: SpanStatusCode.OK });
+			routingSpan.end();
 
 			logger.debug(
 				{
@@ -77,6 +100,12 @@ export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 				"smart-router: provider selected",
 			);
 		} catch (error) {
+			routingSpan.setStatus({ code: SpanStatusCode.ERROR });
+			if (error instanceof Error) {
+				routingSpan.recordException(error);
+			}
+			routingSpan.end();
+
 			logger.error(
 				{
 					model,
