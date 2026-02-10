@@ -20,7 +20,7 @@ let provider: BasicTracerProvider | null = null;
  * Respects `OTEL_ENABLED` env var — when "false", telemetry is a no-op.
  */
 export function initTelemetry(): void {
-	const enabled = process.env.OTEL_ENABLED !== "false";
+	const enabled = process.env.OTEL_ENABLED === "true";
 	if (!enabled) return;
 
 	const serviceName = process.env.OTEL_SERVICE_NAME || "ai-gateway";
@@ -37,7 +37,7 @@ export function initTelemetry(): void {
 		const exporter = new OTLPTraceExporter({
 			url: `${otlpEndpoint}/v1/traces`,
 		});
-		spanProcessors.push(new BatchSpanProcessor(exporter));
+		spanProcessors.push(new BatchSpanProcessor(exporter, { exportTimeoutMillis: 10_000 }));
 	} else {
 		// Fallback: log spans to stdout (useful for local development)
 		spanProcessors.push(new SimpleSpanProcessor(new ConsoleSpanExporter()));

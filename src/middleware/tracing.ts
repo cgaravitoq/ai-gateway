@@ -1,4 +1,9 @@
 import { context, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+	ATTR_HTTP_REQUEST_METHOD,
+	ATTR_HTTP_RESPONSE_STATUS_CODE,
+	ATTR_URL_FULL,
+} from "@opentelemetry/semantic-conventions";
 import type { MiddlewareHandler } from "hono";
 import { getTracer } from "@/telemetry/setup.ts";
 
@@ -36,9 +41,9 @@ export function tracingMiddleware(): MiddlewareHandler<TracingEnv> {
 
 		const span = tracer.startSpan("gateway.request", {
 			attributes: {
-				"http.method": c.req.method,
-				"http.url": c.req.url,
-				request_id: requestId,
+				[ATTR_HTTP_REQUEST_METHOD]: c.req.method,
+				[ATTR_URL_FULL]: c.req.url,
+				"request.id": requestId,
 			},
 		});
 
@@ -51,7 +56,7 @@ export function tracingMiddleware(): MiddlewareHandler<TracingEnv> {
 			await context.with(otelCtx, () => next());
 
 			// Set status code after response is generated
-			span.setAttribute("http.status_code", c.res.status);
+			span.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, c.res.status);
 
 			if (c.res.status >= 400) {
 				span.setStatus({

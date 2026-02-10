@@ -98,11 +98,14 @@ chat.post(
 			const completionId = generateId();
 			const created = Math.floor(Date.now() / 1000);
 
-			// Capture OTel context before entering SSE callback to prevent context loss
-			const otelCtx = context.active();
+			// Capture the active OTel context before entering the SSE callback,
+			// which may run outside the original async context.
+			const capturedCtx = context.active();
 
 			return streamSSE(c, async (sseStream) => {
-				await context.with(otelCtx, async () => {
+				// Wrap callback in the captured OTel context so child spans
+				// are correctly parented even inside the SSE async boundary.
+				await context.with(capturedCtx, async () => {
 					try {
 						const result = streamText({
 							model: route.model,
