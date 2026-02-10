@@ -1,4 +1,7 @@
+import { APICallError } from "ai";
+import type { ProviderName } from "@/config/providers.ts";
 import { logger } from "@/middleware/logging.ts";
+import { errorTracker } from "@/services/error-tracker.ts";
 import type { FallbackConfig, FallbackResult, RetryAttempt } from "@/types/fallback.ts";
 import {
 	BASE_BACKOFF_MS,
@@ -241,6 +244,17 @@ export class FallbackHandler {
 					latencyMs,
 					timestamp: start,
 				});
+
+				// Record the failure in the error tracker so it feeds into
+				// health checks, alerting, and the /metrics endpoint.
+				const statusCode = err instanceof APICallError ? (err.statusCode ?? 500) : 500;
+				const isTimeout = overallSignal.aborted || error.name === "TimeoutError";
+				errorTracker.recordError(
+					provider as ProviderName | "unknown",
+					statusCode,
+					error.message,
+					isTimeout,
+				);
 
 				// If the overall timeout fired, stop immediately
 				if (overallSignal.aborted) {

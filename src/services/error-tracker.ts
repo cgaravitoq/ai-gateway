@@ -58,13 +58,36 @@ const ERROR_RATE_WINDOW_MS = 5 * 60 * 1000;
 /** Alert threshold — warn if error rate exceeds 50% */
 const ALERT_THRESHOLD = 0.5;
 
+/** Cooldown between repeated alerts for the same provider (5 minutes) */
+const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
+
 // ── State ────────────────────────────────────────────────
 
 const providerStats: Record<string, ProviderErrorStats> = {};
 const recentErrors: TimestampedError[] = [];
 let totalErrors = 0;
 
+/** Tracks the last time an alert was fired per provider (or "global") */
+const lastAlertAt: Record<string, number> = {};
+
 // ── Helpers ──────────────────────────────────────────────
+
+/**
+ * Remove entries from `recentErrors` that are older than `ERROR_RATE_WINDOW_MS`.
+ * Also prunes stale keys from `providerStats` where `lastError` has aged out and
+ * all counters sit at 0 consecutive failures. Called before every read to keep
+ * memory bounded even under sustained traffic.
+ */
+function pruneStaleErrors(): void {
+	const cutoff = Date.now() - ERROR_RATE_WINDOW_MS;
+
+	// Remove stale entries from the rolling window (oldest are at the front)
+	let head = recentErrors[0];
+	while (head && head.timestamp < cutoff) {
+		recentErrors.shift();
+		head = recentErrors[0];
+	}
+}
 
 function ensureProviderStats(provider: string): ProviderErrorStats {
 	if (!providerStats[provider]) {
@@ -83,15 +106,14 @@ function ensureProviderStats(provider: string): ProviderErrorStats {
 /**
  * Calculate error rate over the last 5-minute window.
  * Uses totalRequests from metrics.ts as the denominator.
+ * Prunes stale entries before reading to keep memory bounded.
  */
 function calculateErrorRate(provider?: string): number {
-	const now = Date.now();
-	const windowStart = now - ERROR_RATE_WINDOW_MS;
+	pruneStaleErrors();
 
-	const windowErrors = recentErrors.filter((e) => {
-		const inWindow = e.timestamp >= windowStart;
-		return provider ? inWindow && e.provider === provider : inWindow;
-	});
+	const windowErrors = provider
+		? recentErrors.filter((e) => e.provider === provider)
+		: recentErrors;
 
 	const total = getTotalRequests();
 	if (total === 0) return 0;
@@ -102,26 +124,38 @@ function calculateErrorRate(provider?: string): number {
 /**
  * Check alert thresholds per provider and globally.
  * Logs a WARN when error rate > 50% in the last 5 min.
+ * Enforces a cooldown of `ALERT_COOLDOWN_MS` between repeated alerts for the
+ * same provider (or "global") to avoid log spam under sustained failures.
  */
 function checkAlerts(provider: ProviderName | "unknown"): void {
+	const now = Date.now();
+
 	// Per-provider alert
 	const providerRate = calculateErrorRate(provider);
 	if (providerRate > ALERT_THRESHOLD) {
-		logger.warn({
-			alert: "high_error_rate",
-			provider,
-			rate: Math.round(providerRate * 1000) / 1000,
-		});
+		const lastFired = lastAlertAt[provider] ?? 0;
+		if (now - lastFired >= ALERT_COOLDOWN_MS) {
+			lastAlertAt[provider] = now;
+			logger.warn({
+				alert: "high_error_rate",
+				provider,
+				rate: Math.round(providerRate * 1000) / 1000,
+			});
+		}
 	}
 
 	// Global alert
 	const globalRate = calculateErrorRate();
 	if (globalRate > ALERT_THRESHOLD) {
-		logger.warn({
-			alert: "high_error_rate",
-			provider: "global",
-			rate: Math.round(globalRate * 1000) / 1000,
-		});
+		const lastFired = lastAlertAt.global ?? 0;
+		if (now - lastFired >= ALERT_COOLDOWN_MS) {
+			lastAlertAt.global = now;
+			logger.warn({
+				alert: "high_error_rate",
+				provider: "global",
+				rate: Math.round(globalRate * 1000) / 1000,
+			});
+		}
 	}
 }
 
@@ -159,6 +193,9 @@ export function recordError(
 		statusCode,
 	};
 
+	// Prune stale entries before adding to keep memory bounded
+	pruneStaleErrors();
+
 	// Add to rolling window
 	const entry: TimestampedError = {
 		provider,
@@ -170,7 +207,7 @@ export function recordError(
 
 	recentErrors.push(entry);
 
-	// Trim rolling window to ROLLING_WINDOW_SIZE
+	// Also cap at ROLLING_WINDOW_SIZE as a hard upper bound
 	while (recentErrors.length > ROLLING_WINDOW_SIZE) {
 		recentErrors.shift();
 	}

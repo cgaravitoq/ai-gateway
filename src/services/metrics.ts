@@ -75,8 +75,13 @@ export function recordRequest(): void {
 
 /**
  * Get the current total request count.
- * Exported separately to avoid circular imports — error-tracker.ts needs this
- * for error rate calculation, while this file imports getErrorSummary() from error-tracker.ts.
+ *
+ * Why this exists as a separate export: `error-tracker.ts` needs the total
+ * request count to compute error rates. If error-tracker imported `getMetrics()`
+ * instead, it would create a circular dependency because `getMetrics()` itself
+ * imports `getErrorSummary()` from error-tracker. This thin accessor breaks
+ * the cycle: error-tracker → `getTotalRequests()` (metrics) and
+ * metrics → `getErrorSummary()` (error-tracker).
  */
 export function getTotalRequests(): number {
 	return totalRequests;

@@ -5,6 +5,7 @@ import type { ProviderName } from "@/config/providers.ts";
 import { FallbackTimeoutError } from "@/routing/fallback-handler.ts";
 import { errorTracker } from "@/services/error-tracker.ts";
 import type { GatewayError } from "@/types/index.ts";
+import type { RankedProvider } from "@/types/routing.ts";
 import { logger } from "./logging.ts";
 
 /**
@@ -19,10 +20,9 @@ export const errorHandler: ErrorHandler = (err, c) => {
 		path: c.req.path,
 	});
 
-	// Determine provider from context or error details
-	const contextProvider = c.get("selectedProvider" as never) as
-		| { provider: ProviderName }
-		| undefined;
+	// selectedProvider is set by smart-router middleware (see SmartRouterEnv).
+	// It may be undefined if the error occurred before routing ran.
+	const contextProvider = c.get("selectedProvider") as RankedProvider | undefined;
 	const isTimeout = err instanceof FallbackTimeoutError;
 
 	// Handle Vercel AI SDK API errors (from providers)
