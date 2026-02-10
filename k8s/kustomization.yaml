@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ai-gateway
+
+commonLabels:
+  app.kubernetes.io/part-of: ai-gateway
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  # secret.yaml is gitignored. Copy secret.example.yaml → secret.yaml and fill in real values,
+  # or create the secret via kubectl (see README.md deployment section).
+  - secret.yaml
+  - redis-service.yaml
+  - redis-statefulset.yaml
+  - gateway-deployment.yaml
+  - gateway-service.yaml
+  - hpa.yaml
+  - network-policy.yaml
+  - ingress.yaml
+
+# Override the gateway image for different environments:
+#   kustomize edit set image REGION-docker.pkg.dev/PROJECT_ID/ai-gateway/ai-gateway=us-central1-docker.pkg.dev/my-project/ai-gateway/ai-gateway:v1.0.0
+images:
+  - name: REGION-docker.pkg.dev/PROJECT_ID/ai-gateway/ai-gateway
+    newName: REGION-docker.pkg.dev/PROJECT_ID/ai-gateway/ai-gateway
+    newTag: latest

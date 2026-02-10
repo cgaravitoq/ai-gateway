@@ -99,12 +99,17 @@ ai-gateway/
 │       ├── logging.ts        # Request logging
 │       └── rateLimit.ts      # Rate limiting
 ├── k8s/
-│   ├── namespace.yaml
-│   ├── gateway.yaml          # Deployment + Service
-│   ├── redis.yaml            # StatefulSet + Service
-│   ├── configmap.yaml        # Routing config
+│   ├── namespace.yaml        # ai-gateway namespace
+│   ├── gateway-deployment.yaml # Gateway Deployment (2 replicas)
+│   ├── gateway-service.yaml  # ClusterIP Service (80 → 3000)
+│   ├── redis-statefulset.yaml # Redis Stack StatefulSet
+│   ├── redis-service.yaml    # Headless Service for Redis
+│   ├── configmap.yaml        # Non-secret config
 │   ├── secret.yaml           # API keys (template)
-│   └── hpa.yaml              # Autoscaling
+│   ├── hpa.yaml              # Autoscaling (2–10 pods)
+│   ├── network-policy.yaml   # Network isolation rules
+│   ├── ingress.yaml          # External LoadBalancer
+│   └── kustomization.yaml    # Kustomize entrypoint
 ├── tests/
 │   └── ...
 ├── Dockerfile
@@ -154,6 +159,124 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
+
+## ☸️ Deploying to GKE Autopilot
+
+### Prerequisites
+
+- [Google Cloud SDK (`gcloud`)](https://cloud.google.com/sdk/docs/install) configured with a project
+- [`kubectl`](https://kubernetes.io/docs/tasks/tools/) installed
+- [Docker](https://docs.docker.com/get-docker/) installed
+- A GCP project with billing enabled and the following APIs enabled:
+  - Kubernetes Engine API
+  - Artifact Registry API
+
+### 1. Create GKE Autopilot Cluster
+
+```bash
+# Set your project
+export PROJECT_ID=your-gcp-project-id
+export REGION=us-central1
+
+gcloud config set project $PROJECT_ID
+
+# Create cluster (if not already created)
+gcloud container clusters create-auto ai-gateway-cluster \
+  --region=$REGION
+
+# Get credentials
+gcloud container clusters get-credentials ai-gateway-cluster \
+  --region=$REGION
+```
+
+### 2. Create Artifact Registry Repository
+
+```bash
+# Create Docker repository
+gcloud artifacts repositories create ai-gateway \
+  --repository-format=docker \
+  --location=$REGION \
+  --description="AI Gateway container images"
+
+# Configure Docker auth
+gcloud auth configure-docker ${REGION}-docker.pkg.dev
+```
+
+### 3. Build & Push Image
+
+```bash
+# Build the image
+docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/ai-gateway/ai-gateway:latest .
+
+# Push to Artifact Registry
+docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/ai-gateway/ai-gateway:latest
+```
+
+### 4. Configure Secrets
+
+```bash
+# Create the secret with real API keys (do NOT commit these!)
+kubectl create namespace ai-gateway
+
+kubectl create secret generic gateway-secrets \
+  --namespace=ai-gateway \
+  --from-literal=OPENAI_API_KEY=sk-... \
+  --from-literal=ANTHROPIC_API_KEY=sk-ant-... \
+  --from-literal=GOOGLE_API_KEY=AIza... \
+  --from-literal=OPENAI_EMBEDDING_API_KEY=sk-...
+```
+
+### 5. Deploy with Kustomize
+
+```bash
+# Update the image reference to your actual registry
+cd k8s
+kustomize edit set image \
+  REGION-docker.pkg.dev/PROJECT_ID/ai-gateway/ai-gateway=${REGION}-docker.pkg.dev/${PROJECT_ID}/ai-gateway/ai-gateway:latest
+
+# Apply all manifests (skip secret.yaml since we created it manually above)
+kubectl apply -k .
+```
+
+### 6. Verify Deployment
+
+```bash
+# Check pods are running
+kubectl get pods -n ai-gateway
+
+# Check services
+kubectl get svc -n ai-gateway
+
+# Get the external IP (may take a minute for LoadBalancer)
+kubectl get svc ai-gateway-lb -n ai-gateway -w
+
+# Test the health endpoint
+export GATEWAY_IP=$(kubectl get svc ai-gateway-lb -n ai-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+curl http://$GATEWAY_IP/health
+
+# Test a chat completion
+curl -X POST http://$GATEWAY_IP/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+### Kubernetes Manifests Overview
+
+All manifests live in `k8s/` and are managed via [Kustomize](https://kustomize.io/):
+
+| File | Resource | Description |
+|------|----------|-------------|
+| `namespace.yaml` | Namespace | `ai-gateway` namespace |
+| `configmap.yaml` | ConfigMap | Non-secret config (Redis URL, cache settings, routing) |
+| `secret.yaml` | Secret | API keys template (use `kubectl create secret` for real values) |
+| `gateway-deployment.yaml` | Deployment | Gateway pods (2 replicas, probes, security context) |
+| `gateway-service.yaml` | Service | ClusterIP service (port 80 → 3000) |
+| `redis-statefulset.yaml` | StatefulSet | Redis Stack with persistent storage |
+| `redis-service.yaml` | Service | Headless service for stable Redis DNS |
+| `hpa.yaml` | HPA | Autoscale 2–10 replicas at 70% CPU |
+| `network-policy.yaml` | NetworkPolicy | Gateway ↔ Redis isolation, Redis locked down |
+| `ingress.yaml` | Service (LB) | External LoadBalancer for public access |
+| `kustomization.yaml` | Kustomize | Ties all resources together |
 
 ## 📚 Learning Goals
 

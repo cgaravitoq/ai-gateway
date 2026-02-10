@@ -40,20 +40,22 @@
 - [ ] Simple dashboard endpoint (`/metrics`)
 - [ ] OpenTelemetry integration (experimental)
 
-## Phase 5: Kubernetes (GKE)
-- [ ] Create Dockerfile (multi-stage build) — ✅ Done in Phase 1
-- [ ] Create K8s manifests:
-  - [ ] Namespace (`ai-gateway`)
-  - [ ] Deployment + Service (gateway)
-  - [ ] StatefulSet + Service (Redis Stack)
-  - [ ] ConfigMap (routing rules)
-  - [ ] Secret (API keys template)
-  - [ ] HPA (autoscaling)
-  - [ ] Network Policies
+## Phase 5: Kubernetes (GKE) ✅
+- [x] Create Dockerfile (multi-stage build) — Done in Phase 1
+- [x] Create K8s manifests:
+  - [x] Namespace (`ai-gateway`)
+  - [x] Deployment + Service (gateway)
+  - [x] StatefulSet + Service (Redis Stack)
+  - [x] ConfigMap (routing rules)
+  - [x] Secret (API keys template)
+  - [x] HPA (autoscaling)
+  - [x] Network Policies
+  - [x] Ingress / LoadBalancer
+  - [x] Kustomization (ties all manifests together)
 - [ ] Push images to Artifact Registry
 - [ ] Deploy to GKE Autopilot
 - [ ] Test with external LoadBalancer IP
-- [ ] Document deployment process
+- [x] Document deployment process
 
 ## Phase 6: Polish
 - [ ] API documentation (OpenAPI/Swagger)

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: ai-gateway
+  labels:
+    app.kubernetes.io/name: ai-gateway
+    app.kubernetes.io/component: redis
+spec:
+  # Headless service for stable DNS (redis-0.redis.ai-gateway.svc.cluster.local)
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: ai-gateway
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      protocol: TCP
+      port: 6379
+      targetPort: redis
