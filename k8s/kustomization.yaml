@@ -10,14 +10,27 @@ commonLabels:
 resources:
   - namespace.yaml
   - configmap.yaml
-  # secret.yaml is gitignored. Copy secret.example.yaml → secret.yaml and fill in real values,
-  # or create the secret via kubectl (see README.md deployment section).
+  # ──────────────────────────────────────────────────────────────
+  # secret.yaml is gitignored. Create it using ONE of these methods:
+  #
+  # Option 1 — Copy the example file:
+  #   cp secret.example.yaml secret.yaml
+  #   # Edit secret.yaml and replace placeholder values with base64-encoded secrets
+  #
+  # Option 2 — Create via kubectl (skip this resource):
+  #   kubectl create secret generic gateway-secrets \
+  #     --namespace=ai-gateway \
+  #     --from-literal=OPENAI_API_KEY=sk-... \
+  #     --from-literal=ANTHROPIC_API_KEY=sk-ant-...
+  #   # Then comment out the "- secret.yaml" line below.
+  # ──────────────────────────────────────────────────────────────
   - secret.yaml
   - redis-service.yaml
   - redis-statefulset.yaml
   - gateway-deployment.yaml
   - gateway-service.yaml
   - hpa.yaml
+  - pdb.yaml
   - network-policy.yaml
   - ingress.yaml
 

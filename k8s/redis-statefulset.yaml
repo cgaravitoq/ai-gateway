@@ -20,6 +20,10 @@ spec:
         app.kubernetes.io/component: redis
     spec:
       terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
       containers:
         - name: redis
           image: redis/redis-stack-server:latest
@@ -27,6 +31,9 @@ spec:
             - name: redis
               containerPort: 6379
               protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false # Redis needs to write to /data
           resources:
             requests:
               cpu: "500m"
