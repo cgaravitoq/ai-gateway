@@ -3,6 +3,7 @@ import type { ProviderName } from "@/config/providers.ts";
 import { logger } from "@/middleware/logging.ts";
 import { modelSelector } from "@/routing/model-selector.ts";
 import { providerRegistry } from "@/routing/provider-registry.ts";
+import { errorTracker } from "@/services/error-tracker.ts";
 import type { RankedProvider, RequestMetadata } from "@/types/routing.ts";
 
 /**
@@ -107,11 +108,20 @@ export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 			const status = c.res.status;
 			if (status >= 200 && status < 400) {
 				providerRegistry.reportSuccess(selected.provider, selected.modelId, latencyMs);
+				errorTracker.recordSuccess(selected.provider);
 			} else {
 				providerRegistry.reportError(
 					selected.provider,
 					selected.modelId,
 					new Error(`Downstream responded with status ${status}`),
+				);
+
+				// Record the failure in the error tracker
+				errorTracker.recordError(
+					selected.provider,
+					status,
+					`Downstream responded with status ${status}`,
+					false,
 				);
 			}
 

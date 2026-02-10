@@ -1,9 +1,15 @@
 /**
  * Simple in-memory metrics store for cache and gateway stats.
- * Tracks hit/miss/skip counters, latency, embedding costs, and request costs.
+ * Tracks hit/miss/skip counters, latency, embedding costs, request costs, and errors.
+ *
+ * NOTE: Circular import architecture:
+ * - error-tracker.ts imports getTotalRequests() from here (for error rate calculation)
+ * - this file imports getErrorSummary() from error-tracker.ts
+ * - this works because both use lazy function calls, not top-level values
  */
 
 import { type CostSummary, getCostSummary } from "@/services/cost-tracker.ts";
+import { type ErrorSummary, getErrorSummary } from "@/services/error-tracker.ts";
 
 interface CacheMetrics {
 	hits: number;
@@ -20,6 +26,7 @@ interface GatewayMetrics {
 	startedAt: string;
 	cache: CacheMetrics;
 	cost: CostSummary;
+	errors: ErrorSummary;
 }
 
 // In-memory counters
@@ -66,7 +73,16 @@ export function recordRequest(): void {
 	totalRequests++;
 }
 
-/** Get the current total request count (useful for rate calculations) */
+/**
+ * Get the current total request count.
+ *
+ * Why this exists as a separate export: `error-tracker.ts` needs the total
+ * request count to compute error rates. If error-tracker imported `getMetrics()`
+ * instead, it would create a circular dependency because `getMetrics()` itself
+ * imports `getErrorSummary()` from error-tracker. This thin accessor breaks
+ * the cycle: error-tracker → `getTotalRequests()` (metrics) and
+ * metrics → `getErrorSummary()` (error-tracker).
+ */
 export function getTotalRequests(): number {
 	return totalRequests;
 }
@@ -86,5 +102,6 @@ export function getMetrics(): GatewayMetrics {
 			totalEmbeddingCalls: embeddingCalls,
 		},
 		cost: getCostSummary(),
+		errors: getErrorSummary(),
 	};
 }
