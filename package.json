@@ -6,7 +6,7 @@
 	"scripts": {
 		"dev": "bun --hot src/index.ts",
 		"start": "bun run src/index.ts",
-		"test": "bun test",
+		"test": "bun test --preload ./tests/preload.ts",
 		"lint": "bunx biome check .",
 		"format": "bunx biome format --write .",
 		"check": "bunx biome check --write ."

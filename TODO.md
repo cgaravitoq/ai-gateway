@@ -32,16 +32,16 @@
 - [x] Implement request timeout handling
 - [x] Track provider latency for least-latency routing
 
-## Phase 4: Observability
-- [ ] Structured logging (request/response) — ✅ Partially done in Phase 1
-- [ ] Cost tracking per request (input/output tokens × pricing)
-- [ ] Latency metrics per provider
-- [ ] Error tracking and alerting
-- [ ] Simple dashboard endpoint (`/metrics`)
-- [ ] OpenTelemetry integration (experimental)
+## Phase 4: Observability ✅
+- [x] Structured logging (request/response)
+- [x] Cost tracking per request (input/output tokens × pricing)
+- [x] Latency metrics per provider
+- [x] Error tracking and alerting
+- [x] Simple dashboard endpoint (`/metrics`)
+- [x] OpenTelemetry integration
 
 ## Phase 5: Kubernetes (GKE) ✅
-- [x] Create Dockerfile (multi-stage build) — Done in Phase 1
+- [x] Create Dockerfile (multi-stage build)
 - [x] Create K8s manifests:
   - [x] Namespace (`ai-gateway`)
   - [x] Deployment + Service (gateway)
@@ -57,10 +57,11 @@
 - [ ] Test with external LoadBalancer IP
 - [x] Document deployment process
 
-## Phase 6: Polish
-- [ ] API documentation (OpenAPI/Swagger)
-- [ ] Health check endpoints (`/health`, `/ready`) — ✅ Done in Phase 1
-- [ ] Graceful shutdown
-- [ ] README with demo GIFs
-- [ ] Blog post / project write-up
-- [ ] Tests (unit + integration)
+## Phase 6: Polish ✅
+- [x] API documentation (`docs/API.md`)
+- [x] Health check endpoints (`/health`, `/ready`)
+- [x] Graceful shutdown (SIGTERM/SIGINT, Redis disconnect, OTel flush)
+- [x] README rewrite (portfolio quality with badges, architecture, examples)
+- [x] Docker Compose (gateway + Redis with health checks)
+- [x] `.env.example` (complete reference with all env vars)
+- [x] Tests (unit + validation: health, chat, cost-tracker, error-tracker)

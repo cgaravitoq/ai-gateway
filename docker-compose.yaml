@@ -1,32 +1,48 @@
-version: '3.8'
-
 services:
   redis:
     image: redis/redis-stack:latest
     ports:
       - "6379:6379"
-      - "8001:8001"  # RedisInsight UI
+      - "8001:8001" # RedisInsight UI
     volumes:
       - redis_data:/data
+    environment:
+      - REDIS_ARGS=--save 60 1 --loglevel warning
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 5s
 
   gateway:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
+      - PORT=3000
+      - NODE_ENV=development
+      - LOG_LEVEL=info
       - REDIS_URL=redis://redis:6379
+      - CACHE_ENABLED=true
+      - CACHE_TTL_SECONDS=3600
+      - CACHE_SIMILARITY_THRESHOLD=0.15
+      - ROUTING_STRATEGY=balanced
+      - RATE_LIMIT_ENABLED=true
     env_file:
       - .env
     depends_on:
       redis:
         condition: service_healthy
-    volumes:
-      - ./src:/usr/src/app/src  # Hot reload in dev
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
 
 volumes:
   redis_data:
