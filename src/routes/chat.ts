@@ -10,6 +10,39 @@ import { ChatCompletionRequestSchema } from "@/types/index.ts";
 
 const chat = new Hono();
 
+/** Maximum plausible token count — anything above this is likely a bug */
+const MAX_REASONABLE_TOKENS = 1_000_000;
+
+/**
+ * Validate token counts before recording cost.
+ * Returns true if tokens are within reasonable bounds.
+ * Logs warnings for suspicious values and returns false for obviously bad data.
+ */
+function validateTokenCounts(
+	inputTokens: number,
+	outputTokens: number,
+	provider: string,
+	modelId: string,
+): boolean {
+	if (inputTokens < 0 || outputTokens < 0) {
+		logger.warn(
+			{ provider, model: modelId, inputTokens, outputTokens },
+			"Negative token count from provider — skipping cost recording",
+		);
+		return false;
+	}
+
+	if (inputTokens > MAX_REASONABLE_TOKENS || outputTokens > MAX_REASONABLE_TOKENS) {
+		logger.warn(
+			{ provider, model: modelId, inputTokens, outputTokens },
+			"Extreme token count (>1M) — skipping cost recording",
+		);
+		return false;
+	}
+
+	return true;
+}
+
 function generateId(): string {
 	return `chatcmpl-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
 }
@@ -113,19 +146,43 @@ chat.post(
 					if (usage) {
 						const inputTokens = usage.inputTokens ?? 0;
 						const outputTokens = usage.outputTokens ?? 0;
-						const costRecord = recordCost(route.provider, route.modelId, inputTokens, outputTokens);
-						logger.info({
-							type: "cost",
-							provider: route.provider,
-							model: route.modelId,
-							streaming: true,
-							input_tokens: inputTokens,
-							output_tokens: outputTokens,
-							cost_usd: costRecord.costUsd,
-						});
+
+						if (!usage.inputTokens && !usage.outputTokens) {
+							logger.warn(
+								{ provider: route.provider, model: route.modelId, streaming: true },
+								"Provider returned empty usage data — recording zero cost",
+							);
+						}
+
+						if (validateTokenCounts(inputTokens, outputTokens, route.provider, route.modelId)) {
+							const costRecord = recordCost(
+								route.provider,
+								route.modelId,
+								inputTokens,
+								outputTokens,
+							);
+							logger.info({
+								type: "cost",
+								provider: route.provider,
+								model: route.modelId,
+								streaming: true,
+								input_tokens: inputTokens,
+								output_tokens: outputTokens,
+								cost_usd: costRecord.costUsd,
+							});
+						}
+					} else {
+						logger.warn(
+							{ provider: route.provider, model: route.modelId, streaming: true },
+							"Provider did not return usage data — cost not recorded",
+						);
 					}
 				} catch {
 					// Usage may not be available for all providers — non-fatal
+					logger.warn(
+						{ provider: route.provider, model: route.modelId, streaming: true },
+						"Failed to resolve usage data from stream — cost not recorded",
+					);
 				}
 			});
 		}
@@ -146,17 +203,26 @@ chat.post(
 		const inputTokens = result.usage?.inputTokens ?? 0;
 		const outputTokens = result.usage?.outputTokens ?? 0;
 
-		// Record cost tracking
-		const costRecord = recordCost(route.provider, route.modelId, inputTokens, outputTokens);
-		logger.info({
-			type: "cost",
-			provider: route.provider,
-			model: route.modelId,
-			streaming: false,
-			input_tokens: inputTokens,
-			output_tokens: outputTokens,
-			cost_usd: costRecord.costUsd,
-		});
+		if (!result.usage?.inputTokens && !result.usage?.outputTokens) {
+			logger.warn(
+				{ provider: route.provider, model: route.modelId, streaming: false },
+				"Provider did not return usage data — recording zero cost",
+			);
+		}
+
+		// Record cost tracking (skip obviously bad data)
+		if (validateTokenCounts(inputTokens, outputTokens, route.provider, route.modelId)) {
+			const costRecord = recordCost(route.provider, route.modelId, inputTokens, outputTokens);
+			logger.info({
+				type: "cost",
+				provider: route.provider,
+				model: route.modelId,
+				streaming: false,
+				input_tokens: inputTokens,
+				output_tokens: outputTokens,
+				cost_usd: costRecord.costUsd,
+			});
+		}
 
 		const response: ChatCompletionResponse = {
 			id: generateId(),

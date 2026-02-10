@@ -34,8 +34,14 @@ export interface CostSummary {
 /** Rolling window of recent requests kept in memory */
 const MAX_RECENT_REQUESTS = 50;
 
-/** Cost alert threshold — warn when cumulative cost exceeds this (USD) */
-const COST_ALERT_THRESHOLD_USD = 10;
+/** Maximum distinct models tracked in byModel (LRU-style eviction) */
+const MAX_MODEL_ENTRIES = 100;
+
+/** Tiered cost alert thresholds (USD) — alerts fire once per tier per period */
+const COST_ALERT_TIERS_USD = [10, 50, 100, 500] as const;
+
+/** Alert reset interval — resets fired alerts so they can re-trigger (24h) */
+const ALERT_RESET_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 // ── State ────────────────────────────────────────────────
 
@@ -43,7 +49,12 @@ const recentRequests: CostRecord[] = [];
 let totalCostUsd = 0;
 let totalInputTokens = 0;
 let totalOutputTokens = 0;
-let alertFired = false;
+
+/** Tracks which alert tiers have already fired in the current period */
+const alertsFired = new Set<number>();
+
+/** Timestamp of last alert reset */
+let lastAlertResetAt = Date.now();
 
 const byProvider: Record<ProviderName, ProviderCostStats> = {
 	openai: { requests: 0, totalCost: 0, inputTokens: 0, outputTokens: 0 },
@@ -56,19 +67,58 @@ const byModel: Record<string, { requests: number; totalCost: number }> = {};
 // ── Helpers ──────────────────────────────────────────────
 
 /**
- * Check if cumulative cost exceeds alert threshold and log a warning once.
+ * Evict the least-used model entry when byModel exceeds MAX_MODEL_ENTRIES.
+ * Removes the model with the fewest requests (ties broken by lowest cost).
  */
-function checkCostAlert(): void {
-	if (!alertFired && totalCostUsd >= COST_ALERT_THRESHOLD_USD) {
-		alertFired = true;
-		logger.warn(
-			{
-				alert: "cost_threshold_exceeded",
-				totalCostUsd: Math.round(totalCostUsd * 10000) / 10000,
-				thresholdUsd: COST_ALERT_THRESHOLD_USD,
-			},
-			`Cumulative cost exceeded $${COST_ALERT_THRESHOLD_USD}`,
-		);
+function evictLeastUsedModel(): void {
+	const entries = Object.entries(byModel);
+	if (entries.length <= MAX_MODEL_ENTRIES) return;
+
+	let leastKey: string | null = null;
+	let leastRequests = Number.POSITIVE_INFINITY;
+	let leastCost = Number.POSITIVE_INFINITY;
+
+	for (const [key, stats] of entries) {
+		if (
+			stats.requests < leastRequests ||
+			(stats.requests === leastRequests && stats.totalCost < leastCost)
+		) {
+			leastKey = key;
+			leastRequests = stats.requests;
+			leastCost = stats.totalCost;
+		}
+	}
+
+	if (leastKey !== null) {
+		delete byModel[leastKey];
+	}
+}
+
+/**
+ * Check if cumulative cost exceeds any alert tier and log a warning.
+ * Alerts reset periodically so they can re-fire in new periods.
+ */
+function checkCostAlerts(): void {
+	const now = Date.now();
+
+	// Reset fired alerts after the reset interval (daily)
+	if (now - lastAlertResetAt >= ALERT_RESET_INTERVAL_MS) {
+		alertsFired.clear();
+		lastAlertResetAt = now;
+	}
+
+	for (const tier of COST_ALERT_TIERS_USD) {
+		if (!alertsFired.has(tier) && totalCostUsd >= tier) {
+			alertsFired.add(tier);
+			logger.warn(
+				{
+					alert: "cost_threshold_exceeded",
+					totalCostUsd: Math.round(totalCostUsd * 10000) / 10000,
+					thresholdUsd: tier,
+				},
+				`Cumulative cost exceeded $${tier}`,
+			);
+		}
 	}
 }
 
@@ -111,9 +161,10 @@ export function recordCost(
 	providerStats.inputTokens += inputTokens;
 	providerStats.outputTokens += outputTokens;
 
-	// Update per-model stats
+	// Update per-model stats (with LRU-style eviction)
 	if (!byModel[modelId]) {
 		byModel[modelId] = { requests: 0, totalCost: 0 };
+		evictLeastUsedModel();
 	}
 	byModel[modelId].requests++;
 	byModel[modelId].totalCost += costUsd;
@@ -124,8 +175,8 @@ export function recordCost(
 		recentRequests.shift();
 	}
 
-	// Check alert threshold
-	checkCostAlert();
+	// Check alert thresholds
+	checkCostAlerts();
 
 	return record;
 }
@@ -151,9 +202,38 @@ export function getTotalCost(): number {
 	return totalCostUsd;
 }
 
+/**
+ * Reset all cost tracking state.
+ * Useful for testing, periodic resets, or administrative clearing.
+ */
+export function resetCostTracking(): void {
+	totalCostUsd = 0;
+	totalInputTokens = 0;
+	totalOutputTokens = 0;
+	recentRequests.length = 0;
+	alertsFired.clear();
+	lastAlertResetAt = Date.now();
+
+	for (const key of Object.keys(byModel)) {
+		delete byModel[key];
+	}
+
+	for (const provider of Object.keys(byProvider) as ProviderName[]) {
+		byProvider[provider] = {
+			requests: 0,
+			totalCost: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+		};
+	}
+
+	logger.info("Cost tracking state reset");
+}
+
 /** Singleton accessor — exported as a namespace object for convenience */
 export const costTracker = {
 	recordCost,
 	getCostSummary,
 	getTotalCost,
+	resetCostTracking,
 } as const;
