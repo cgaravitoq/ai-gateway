@@ -4,6 +4,7 @@ import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { generateText, streamText } from "ai";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
+import { env } from "@/config/env.ts";
 import { logger } from "@/middleware/logging.ts";
 import { recordCost } from "@/services/cost-tracker.ts";
 import { type ResolvedRoute, routeModel } from "@/services/router/index.ts";
@@ -60,7 +61,13 @@ function generateId(): string {
 	return `${COMPLETION_ID_PREFIX}${crypto.randomUUID().replace(/-/g, "").slice(0, COMPLETION_ID_SUFFIX_LENGTH)}`;
 }
 
-/** Convert messages to the format expected by Vercel AI SDK. */
+/**
+ * Convert gateway message format to Vercel AI SDK message format.
+ *
+ * Maps the gateway's `Message` type (which uses the OpenAI-compatible schema)
+ * to the `{ role, content }` tuples expected by the Vercel AI SDK's
+ * `generateText` / `streamText` functions.
+ */
 function toSdkMessages(
 	messages: Message[],
 ): Array<{ role: "system" | "user" | "assistant"; content: string }> {
@@ -69,7 +76,17 @@ function toSdkMessages(
 
 /**
  * Record token usage, cost, and span attributes for a completed LLM call.
- * Shared by both streaming and non-streaming paths.
+ *
+ * Shared by both streaming and non-streaming paths. Validates token counts
+ * before delegating to `recordCost()`, then annotates the active OTel span
+ * with input/output tokens and latency.
+ *
+ * @param inputTokens  - Number of input (prompt) tokens consumed.
+ * @param outputTokens - Number of output (completion) tokens generated.
+ * @param route        - The resolved route containing provider and model info.
+ * @param streaming    - Whether the response was streamed.
+ * @param span         - The active OpenTelemetry span to annotate.
+ * @param llmStart     - Timestamp (ms) when the LLM call started.
  */
 function recordUsageAndCost(
 	inputTokens: number,
@@ -160,6 +177,11 @@ chat.post(
 			const completionId = generateId();
 			const created = Math.floor(Date.now() / 1000);
 
+			// Abort the stream if the provider stalls beyond the configured timeout.
+			const streamTimeoutMs = env.ROUTING_TIMEOUT_MS ?? 30_000;
+			const abortController = new AbortController();
+			const streamTimer = setTimeout(() => abortController.abort(), streamTimeoutMs);
+
 			// Capture the active OTel context before entering the SSE callback,
 			// which may run outside the original async context.
 			const capturedCtx = context.active();
@@ -174,6 +196,7 @@ chat.post(
 							maxOutputTokens: max_tokens ?? undefined,
 							topP: top_p ?? undefined,
 							stopSequences,
+							abortSignal: abortController.signal,
 							onError({ error }) {
 								logger.error(
 									{ err: error instanceof Error ? error.message : String(error) },
@@ -213,6 +236,9 @@ chat.post(
 						await sseStream.writeSSE({ data: JSON.stringify(finalChunk) });
 						await sseStream.writeSSE({ data: "[DONE]" });
 
+						// Stream completed — cancel the timeout guard
+						clearTimeout(streamTimer);
+
 						// Record cost after stream completes
 						try {
 							const usage = await result.usage;
@@ -232,9 +258,14 @@ chat.post(
 								);
 								llmSpan.setAttributes({ latency_ms: Date.now() - llmStart });
 							}
-						} catch {
+						} catch (usageError) {
 							logger.warn(
-								{ provider: route.provider, model: route.modelId, streaming: true },
+								{
+									provider: route.provider,
+									model: route.modelId,
+									streaming: true,
+									err: usageError instanceof Error ? usageError.message : String(usageError),
+								},
 								"Failed to resolve usage data from stream — cost not recorded",
 							);
 							llmSpan.setAttributes({ latency_ms: Date.now() - llmStart });
@@ -242,6 +273,7 @@ chat.post(
 
 						llmSpan.setStatus({ code: SpanStatusCode.OK });
 					} catch (error) {
+						clearTimeout(streamTimer);
 						recordSpanError(llmSpan, error);
 						throw error;
 					} finally {

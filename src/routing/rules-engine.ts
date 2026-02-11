@@ -8,7 +8,16 @@ import type {
 } from "@/types/routing.ts";
 import { evaluateCondition } from "./rule-evaluator.ts";
 
-/** Score weights for the balanced strategy */
+/**
+ * Score weights for the balanced routing strategy.
+ *
+ * - **latency (0.4):** Weighted highest because user-perceived responsiveness
+ *   is the strongest signal for LLM API quality.
+ * - **cost (0.3):** Significant weight — keeps spend in check without
+ *   sacrificing responsiveness.
+ * - **capability (0.3):** Ensures models that match the request's feature
+ *   requirements (vision, function calling, etc.) are still preferred.
+ */
 const BALANCED_WEIGHTS = {
 	cost: 0.3,
 	latency: 0.4,
@@ -51,12 +60,12 @@ const DEFAULT_CAPABILITIES: Record<string, ModelCapability[]> = {
  */
 export class RoutingRulesEngine {
 	private readonly rules: RoutingRule[];
-	private readonly pricing: ModelPricing[];
+	private readonly pricing: readonly ModelPricing[];
 	private readonly capabilities: Record<string, ModelCapability[]>;
 
 	constructor(
 		rules: RoutingRule[],
-		pricing: ModelPricing[],
+		pricing: readonly ModelPricing[],
 		capabilities?: Record<string, ModelCapability[]>,
 	) {
 		if (pricing.length === 0) {
@@ -72,7 +81,14 @@ export class RoutingRulesEngine {
 
 	/**
 	 * Create a new engine instance with additional capability entries merged
-	 * on top of the current set. Useful for runtime registration of new models.
+	 * on top of the current set.
+	 *
+	 * Useful for runtime registration of new models without mutating the
+	 * original engine. The returned instance shares rule and pricing data
+	 * but has an extended capabilities map.
+	 *
+	 * @param extra - Capability entries keyed by `"provider:modelId"`.
+	 * @returns A new `RoutingRulesEngine` with the merged capabilities.
 	 */
 	withCapabilities(extra: Record<string, ModelCapability[]>): RoutingRulesEngine {
 		return new RoutingRulesEngine(this.rules, this.pricing, {
@@ -83,7 +99,17 @@ export class RoutingRulesEngine {
 
 	/**
 	 * Evaluate all providers against the configured rules and return ranked results.
-	 * Providers are filtered by availability and rate limits, scored, then sorted.
+	 *
+	 * **Pipeline:**
+	 * 1. Filter providers by availability and rate-limit headroom.
+	 * 2. Build candidate pairs (provider × model) that satisfy capability requirements.
+	 * 3. Match routing rules against each candidate.
+	 * 4. Exclude candidates flagged by rule-based exclusions.
+	 * 5. Score using the balanced formula and sort descending.
+	 *
+	 * @param request   - Metadata about the incoming request (model, hints, capabilities).
+	 * @param providers - Live state of all registered providers.
+	 * @returns Ranked list of providers, best first. Empty if none qualify.
 	 */
 	evaluate(request: RequestMetadata, providers: ProviderState[]): RankedProvider[] {
 		// Step 1: Filter providers by availability and rate limits
