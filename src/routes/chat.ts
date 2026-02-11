@@ -212,10 +212,16 @@ chat.post(
 			const capturedCtx = context.active();
 
 			return streamSSE(c, async (sseStream) => {
+				let streamCompleted = false;
+
 				sseStream.onAbort(() => {
-					logger.warn("Client disconnected — aborting upstream LLM stream");
-					abortController.abort();
-					clearTimeout(streamTimer);
+					if (!streamCompleted) {
+						logger.warn("Client disconnected — aborting upstream LLM stream");
+						clearTimeout(streamTimer);
+						if (!abortController.signal.aborted) {
+							abortController.abort();
+						}
+					}
 				});
 
 				await context.with(capturedCtx, async () => {
@@ -272,6 +278,7 @@ chat.post(
 						await sseStream.writeSSE({ data: "[DONE]" });
 
 						// Stream completed — cancel the timeout guard
+						streamCompleted = true;
 						clearTimeout(streamTimer);
 
 						// Record cost after stream completes
