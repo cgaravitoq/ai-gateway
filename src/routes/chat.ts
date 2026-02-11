@@ -6,13 +6,16 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { env } from "@/config/env.ts";
 import { logger } from "@/middleware/logging.ts";
+import type { SmartRouterEnv } from "@/middleware/smart-router.ts";
 import { recordCost } from "@/services/cost-tracker.ts";
+import { getModel } from "@/services/providers/index.ts";
 import { type ResolvedRoute, routeModel } from "@/services/router/index.ts";
 import { getTracer, recordSpanError } from "@/telemetry/setup.ts";
 import type { ChatCompletionChunk, ChatCompletionResponse, Message } from "@/types/index.ts";
 import { ChatCompletionRequestSchema } from "@/types/index.ts";
+import type { RankedProvider } from "@/types/routing.ts";
 
-const chat = new Hono();
+const chat = new Hono<SmartRouterEnv>();
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -156,8 +159,18 @@ chat.post(
 		const body = c.req.valid("json");
 		const { model, messages, stream, temperature, max_tokens, top_p, stop } = body;
 
-		// Route to the correct provider
-		const route = routeModel(model);
+		// Use smart-router selection if available, otherwise fall back to static routing
+		const selectedProvider = c.get("selectedProvider") as RankedProvider | undefined;
+		let route: ResolvedRoute;
+		if (selectedProvider) {
+			route = {
+				model: getModel(selectedProvider.provider, selectedProvider.modelId),
+				provider: selectedProvider.provider,
+				modelId: selectedProvider.modelId,
+			};
+		} else {
+			route = routeModel(model);
+		}
 
 		// Convert stop to array format if needed
 		const stopSequences = stop ? (Array.isArray(stop) ? stop : [stop]) : undefined;

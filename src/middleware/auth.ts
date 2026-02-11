@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
 import { env } from "@/config/env.ts";
 import { logger } from "@/middleware/logging.ts";
@@ -45,7 +46,9 @@ export function authMiddleware(): MiddlewareHandler {
 
 		const token = authHeader.slice("Bearer ".length);
 
-		if (token !== env.GATEWAY_API_KEY) {
+		const tokenBuf = Buffer.from(token);
+		const keyBuf = Buffer.from(env.GATEWAY_API_KEY);
+		if (tokenBuf.length !== keyBuf.length || !timingSafeEqual(tokenBuf, keyBuf)) {
 			logger.warn({ path: c.req.path }, "Invalid API key");
 			return c.json(
 				{

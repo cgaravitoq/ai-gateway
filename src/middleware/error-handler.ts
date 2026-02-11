@@ -68,7 +68,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
 
 		const errorResponse: GatewayError = {
 			error: {
-				message: err.message,
+				message: env.NODE_ENV === "development" ? err.message : "Upstream provider error",
 				type: mapStatusToErrorType(status),
 				code: status,
 				provider: extractProviderFromError(err),

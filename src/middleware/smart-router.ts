@@ -156,7 +156,26 @@ export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 		}
 
 		// ── 4. Execute downstream handler ───────────────────
-		await next();
+		try {
+			await next();
+		} catch (error) {
+			const latencyMs = Date.now() - startTime;
+			const selected = c.get("selectedProvider");
+			if (selected) {
+				providerRegistry.reportError(selected.provider, selected.modelId, error as Error);
+				errorTracker.recordError(
+					selected.provider,
+					500,
+					error instanceof Error ? error.message : String(error),
+					false,
+				);
+				logger.debug(
+					{ provider: selected.provider, modelId: selected.modelId, latencyMs },
+					"smart-router: request failed with exception",
+				);
+			}
+			throw error; // Re-throw for global error handler
+		}
 
 		// ── 5. Record outcome ───────────────────────────────
 		const latencyMs = Date.now() - startTime;
