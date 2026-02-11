@@ -13,6 +13,10 @@ const envSchema = z.object({
 	NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 	LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
+	// ── Gateway Authentication ─────────────────────────────────
+	/** Required — API key for authenticating requests to the gateway */
+	GATEWAY_API_KEY: z.string().min(1, "GATEWAY_API_KEY is required"),
+
 	// ── LLM Provider API Keys ──────────────────────────────────
 	/** Required — used for chat completions and embedding generation */
 	OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cacheConfig } from "@/config/cache.ts";
 import { env } from "@/config/env.ts";
+import { authMiddleware } from "@/middleware/auth.ts";
 import { semanticCacheMiddleware } from "@/middleware/cache.ts";
 import { errorHandler } from "@/middleware/error-handler.ts";
 import { logger, requestLogger } from "@/middleware/logging.ts";
@@ -24,7 +25,8 @@ const app = new Hono();
 app.use(tracingMiddleware());
 app.use(requestLogger());
 
-// Middleware chain: rate limiter → timeout → smart router → semantic cache
+// Middleware chain: auth → rate limiter → timeout → smart router → semantic cache
+app.use("/v1/*", authMiddleware());
 app.use("/v1/*", rateLimiter());
 app.use("/v1/*", timeoutMiddleware(30_000));
 app.use("/v1/*", smartRouter());

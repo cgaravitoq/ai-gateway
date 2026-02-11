@@ -6,6 +6,9 @@ import { detectProvider } from "@/services/providers/index.ts";
 import type { ProviderTimeoutMap, TimeoutConfig } from "@/types/timeout.ts";
 import { TimeoutError } from "@/types/timeout.ts";
 
+const MAX_TIMEOUT_MS = 120_000;
+const MIN_TIMEOUT_MS = 1_000;
+
 /** Build per-provider timeout map from validated environment */
 function buildPerProviderTimeouts(): ProviderTimeoutMap {
 	return {
@@ -63,7 +66,11 @@ export function timeoutMiddleware(defaultTimeoutMs: number): MiddlewareHandler {
 		if (headerTimeout) {
 			const parsed = Number.parseInt(headerTimeout, 10);
 			if (!Number.isNaN(parsed) && parsed > 0) {
-				effectiveTimeout = parsed;
+				const clamped = Math.max(MIN_TIMEOUT_MS, Math.min(parsed, MAX_TIMEOUT_MS));
+				if (clamped !== parsed) {
+					logger.info({ original: parsed, clamped }, "Clamped X-Timeout-Ms header value");
+				}
+				effectiveTimeout = clamped;
 			} else {
 				logger.warn(
 					{ headerValue: headerTimeout },
