@@ -1,3 +1,4 @@
+import { CAPABILITIES_MAP } from "@/config/models.ts";
 import type { ModelPricing } from "@/types/metrics.ts";
 import type { ProviderState } from "@/types/provider.ts";
 import type {
@@ -34,22 +35,15 @@ const MAX_CAPABILITY_BASELINE = 5;
 const DEFAULT_LATENCY_MS = 500;
 
 /**
- * Default model capabilities keyed by `"provider:modelId"`.
+ * Default model capabilities loaded from `models.json` via `CAPABILITIES_MAP`.
  *
  * This map is the initial seed — callers can extend or override it by passing
  * a custom `capabilities` map to the `RoutingRulesEngine` constructor.
  *
- * To add a new model, append an entry here or supply a runtime override
- * via `RoutingRulesEngine.withCapabilities()`.
+ * To add a new model, edit `src/config/models.json` or supply a runtime
+ * override via `RoutingRulesEngine.withCapabilities()`.
  */
-const DEFAULT_CAPABILITIES: Record<string, ModelCapability[]> = {
-	"openai:gpt-4o": ["streaming", "vision", "function_calling", "json_mode"],
-	"openai:gpt-4o-mini": ["streaming", "function_calling", "json_mode"],
-	"anthropic:claude-sonnet-4-20250514": ["streaming", "vision", "function_calling", "long_context"],
-	"anthropic:claude-haiku-3-5": ["streaming", "function_calling"],
-	"google:gemini-2.0-flash": ["streaming", "function_calling", "json_mode"],
-	"google:gemini-2.0-pro": ["streaming", "vision", "function_calling", "json_mode", "long_context"],
-};
+const DEFAULT_CAPABILITIES: Record<string, ModelCapability[]> = { ...CAPABILITIES_MAP };
 
 /**
  * RoutingRulesEngine evaluates providers against routing rules

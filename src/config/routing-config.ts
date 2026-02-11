@@ -1,20 +1,9 @@
 import { z } from "zod/v4";
 import { env } from "@/config/env.ts";
-import type { ProviderName } from "@/config/providers.ts";
-import type { ModelPricing } from "@/types/metrics.ts";
 import type { RoutingRule } from "@/types/routing.ts";
 
-// ── Helper ────────────────────────────────────────────────
-
-/** Create a typed ModelPricing entry without `as ProviderName` casts. */
-function pricing(
-	modelId: string,
-	provider: ProviderName,
-	inputPer1k: number,
-	outputPer1k: number,
-): ModelPricing {
-	return { modelId, provider, inputPer1k, outputPer1k };
-}
+// Re-export MODEL_PRICING from the centralized models config
+export { MODEL_PRICING } from "@/config/models.ts";
 
 // ── Schema ────────────────────────────────────────────────
 
@@ -49,21 +38,6 @@ export function loadRoutingConfig(): RoutingConfig {
 		latencyWindowSize: env.ROUTING_LATENCY_WINDOW,
 	});
 }
-
-// ── Model Pricing ─────────────────────────────────────────
-
-/** Default model pricing (static, updated periodically) */
-export const MODEL_PRICING: readonly ModelPricing[] = [
-	// OpenAI
-	pricing("gpt-4o", "openai", 0.0025, 0.01),
-	pricing("gpt-4o-mini", "openai", 0.00015, 0.0006),
-	// Anthropic
-	pricing("claude-sonnet-4-20250514", "anthropic", 0.003, 0.015),
-	pricing("claude-haiku-3-5", "anthropic", 0.0008, 0.004),
-	// Google
-	pricing("gemini-2.0-flash", "google", 0.0001, 0.0004),
-	pricing("gemini-2.0-pro", "google", 0.00125, 0.005),
-] as const;
 
 // ── Routing Rules ─────────────────────────────────────────
 

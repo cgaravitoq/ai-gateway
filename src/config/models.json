@@ -1,0 +1,34 @@
+{
+	"models": {
+		"gpt-4o": {
+			"provider": "openai",
+			"pricing": { "inputPer1k": 0.0025, "outputPer1k": 0.01 },
+			"capabilities": ["streaming", "vision", "function_calling", "json_mode"]
+		},
+		"gpt-4o-mini": {
+			"provider": "openai",
+			"pricing": { "inputPer1k": 0.00015, "outputPer1k": 0.0006 },
+			"capabilities": ["streaming", "function_calling", "json_mode"]
+		},
+		"claude-sonnet-4-20250514": {
+			"provider": "anthropic",
+			"pricing": { "inputPer1k": 0.003, "outputPer1k": 0.015 },
+			"capabilities": ["streaming", "vision", "function_calling", "long_context"]
+		},
+		"claude-haiku-3-5": {
+			"provider": "anthropic",
+			"pricing": { "inputPer1k": 0.0008, "outputPer1k": 0.004 },
+			"capabilities": ["streaming", "function_calling"]
+		},
+		"gemini-2.0-flash": {
+			"provider": "google",
+			"pricing": { "inputPer1k": 0.0001, "outputPer1k": 0.0004 },
+			"capabilities": ["streaming", "function_calling", "json_mode"]
+		},
+		"gemini-2.0-pro": {
+			"provider": "google",
+			"pricing": { "inputPer1k": 0.00125, "outputPer1k": 0.005 },
+			"capabilities": ["streaming", "vision", "function_calling", "json_mode", "long_context"]
+		}
+	}
+}
