@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cacheConfig } from "@/config/cache.ts";
+import { authMiddleware } from "@/middleware/auth.ts";
 import { isRedisHealthy } from "@/services/cache/redis.ts";
 import { getCostSummary } from "@/services/cost-tracker.ts";
 import { getMetrics } from "@/services/metrics.ts";
@@ -32,12 +33,12 @@ health.get("/ready", async (c) => {
 	);
 });
 
-health.get("/metrics", (c) => {
+health.get("/metrics", authMiddleware(), (c) => {
 	return c.json(getMetrics());
 });
 
 /** Dedicated cost tracking endpoint — detailed breakdown by provider and model */
-health.get("/metrics/costs", (c) => {
+health.get("/metrics/costs", authMiddleware(), (c) => {
 	return c.json(getCostSummary());
 });
 

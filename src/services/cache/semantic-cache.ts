@@ -55,6 +55,12 @@ export async function semanticSearch(
 	messages: Array<{ role: string; content: string }>,
 	model: string,
 ): Promise<CacheSearchResult> {
+	// Validate model name to prevent Redis injection
+	if (!validateModelName(model)) {
+		logger.warn({ model }, "Invalid model name in semantic search");
+		return { hit: false };
+	}
+
 	const client = getRedisClient();
 
 	if (!client.isOpen) {
@@ -129,6 +135,12 @@ export async function cacheResponse(
 	response: string,
 	usage: CachedResponse["usage"],
 ): Promise<void> {
+	// Validate model name to prevent Redis injection
+	if (!validateModelName(model)) {
+		logger.warn({ model }, "Invalid model name in cache response");
+		return;
+	}
+
 	const client = getRedisClient();
 
 	if (!client.isOpen) return;
@@ -162,9 +174,17 @@ export async function cacheResponse(
 }
 
 /**
+ * Validate model name against allowed pattern.
+ * Prevents injection by rejecting invalid model names before escaping.
+ */
+function validateModelName(model: string): boolean {
+	return /^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/.test(model);
+}
+
+/**
  * Escape special characters in a Redis TAG value.
- * Tags with special chars like dots, dashes need escaping.
+ * Escapes ALL Redis query special chars: {}|@*()!~\"' plus spaces and dots/colons/slashes/dashes.
  */
 function escapeTag(value: string): string {
-	return value.replace(/[.:\-/]/g, "\\$&");
+	return value.replace(/[{}|@*()!~\\"'.:\-/\s]/g, "\\$&");
 }
