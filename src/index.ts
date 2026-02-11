@@ -22,6 +22,23 @@ initTelemetry();
 
 const app = new Hono();
 
+// Drain middleware — reject new requests during shutdown (must be first)
+let isShuttingDown = false;
+app.use("*", async (c, next) => {
+	if (isShuttingDown)
+		return c.json(
+			{
+				error: {
+					message: "Service shutting down",
+					type: "server_error",
+					code: 503,
+				},
+			},
+			503,
+		);
+	await next();
+});
+
 // Global middleware — tracing first so every request gets a root span
 app.use(tracingMiddleware());
 app.use(requestLogger());
@@ -84,10 +101,10 @@ app.notFound((c) => {
 
 const port = env.PORT;
 
-export default {
+const server = Bun.serve({
 	port,
 	fetch: app.fetch,
-};
+});
 
 // Initialize Redis and vector index (non-blocking — gateway starts even if Redis is down)
 if (cacheConfig.enabled) {
@@ -113,11 +130,10 @@ if (cacheConfig.enabled) {
 /** Maximum time to wait for in-flight requests before force-exiting */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-let isShuttingDown = false;
-
 const shutdown = async (signal: string) => {
 	if (isShuttingDown) return;
 	isShuttingDown = true;
+	server.stop();
 
 	logger.info({ signal }, "Graceful shutdown initiated");
 
