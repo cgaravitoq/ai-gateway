@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { cacheConfig } from "@/config/cache.ts";
 import { env } from "@/config/env.ts";
 import { authMiddleware } from "@/middleware/auth.ts";
@@ -27,6 +28,24 @@ app.use(requestLogger());
 
 // Middleware chain: auth → rate limiter → timeout → smart router → semantic cache
 app.use("/v1/*", authMiddleware());
+app.use(
+	"/v1/*",
+	bodyLimit({
+		maxSize: 1024 * 1024, // 1MB
+		onError: (c) => {
+			return c.json(
+				{
+					error: {
+						message: "Request body too large. Maximum size is 1MB.",
+						type: "invalid_request_error",
+						code: 413,
+					},
+				},
+				413,
+			);
+		},
+	}),
+);
 app.use("/v1/*", rateLimiter());
 app.use("/v1/*", timeoutMiddleware(30_000));
 app.use("/v1/*", smartRouter());

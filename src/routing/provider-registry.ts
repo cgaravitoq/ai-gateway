@@ -20,6 +20,8 @@ interface ProviderEntry {
 	circuitOpenedAt: number | null;
 	rateLimitRemaining: number;
 	rateLimitResetAt: number;
+	/** Whether a probe request is currently in flight during half-open state */
+	halfOpenProbeInFlight: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export class ProviderRegistry {
 				circuitOpenedAt: null,
 				rateLimitRemaining: Number.POSITIVE_INFINITY,
 				rateLimitResetAt: 0,
+				halfOpenProbeInFlight: false,
 			});
 		}
 	}
@@ -84,6 +87,7 @@ export class ProviderRegistry {
 
 		entry.consecutiveErrors = 0;
 		entry.circuitOpenedAt = null;
+		entry.halfOpenProbeInFlight = false;
 
 		latencyTracker.recordLatency(provider, modelId, latencyMs, latencyMs, true);
 
@@ -101,8 +105,20 @@ export class ProviderRegistry {
 
 		latencyTracker.recordLatency(provider, modelId, 0, 0, false);
 
-		// Trip the circuit breaker when the threshold is reached
-		if (entry.consecutiveErrors >= CIRCUIT_BREAKER_THRESHOLD && entry.circuitOpenedAt === null) {
+		// Handle probe failure during half-open state
+		if (entry.halfOpenProbeInFlight && entry.consecutiveErrors >= CIRCUIT_BREAKER_THRESHOLD) {
+			entry.circuitOpenedAt = now;
+			entry.halfOpenProbeInFlight = false;
+			logger.warn(
+				{ provider, consecutiveErrors: entry.consecutiveErrors },
+				"circuit breaker reopened — probe request failed",
+			);
+		}
+		// Trip the circuit breaker when the threshold is reached (normal case)
+		else if (
+			entry.consecutiveErrors >= CIRCUIT_BREAKER_THRESHOLD &&
+			entry.circuitOpenedAt === null
+		) {
 			entry.circuitOpenedAt = now;
 			logger.warn(
 				{ provider, consecutiveErrors: entry.consecutiveErrors },
@@ -138,10 +154,12 @@ export class ProviderRegistry {
 			if (elapsed < CIRCUIT_BREAKER_COOLDOWN_MS) {
 				return false;
 			}
-			// Cooldown expired — half-open: allow one attempt
-			entry.circuitOpenedAt = null;
-			entry.consecutiveErrors = 0;
-			logger.info({ provider: entry.id }, "circuit breaker half-open — allowing retry");
+			// Cooldown expired — half-open: only allow one probe request
+			if (entry.halfOpenProbeInFlight) {
+				return false;
+			}
+			entry.halfOpenProbeInFlight = true;
+			logger.info({ provider: entry.id }, "circuit breaker half-open — probe request allowed");
 		}
 		return true;
 	}
