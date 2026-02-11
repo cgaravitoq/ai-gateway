@@ -5,7 +5,6 @@
 
 import type { ProviderName } from "@/config/providers.ts";
 import { logger } from "@/middleware/logging.ts";
-import { getTotalRequests } from "@/services/metrics.ts";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -69,6 +68,7 @@ const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 
 const providerStats: Record<string, ProviderErrorStats> = {};
 const recentErrors: TimestampedError[] = [];
+const recentRequests: number[] = []; // timestamps of all requests in the window
 let totalErrors = 0;
 
 /** Tracks the last time an alert was fired per provider (or "global") */
@@ -91,6 +91,21 @@ function pruneStaleErrors(): void {
 	}
 }
 
+/**
+ * Remove stale entries from `recentRequests` that are older than `ERROR_RATE_WINDOW_MS`.
+ * Called to keep memory bounded even under sustained traffic.
+ */
+function pruneStaleRequests(): void {
+	const cutoff = Date.now() - ERROR_RATE_WINDOW_MS;
+
+	// Remove stale entries from the rolling window (oldest are at the front)
+	let head = recentRequests[0];
+	while (head !== undefined && head < cutoff) {
+		recentRequests.shift();
+		head = recentRequests[0];
+	}
+}
+
 function ensureProviderStats(provider: string): ProviderErrorStats {
 	if (!providerStats[provider]) {
 		providerStats[provider] = {
@@ -107,17 +122,18 @@ function ensureProviderStats(provider: string): ProviderErrorStats {
 
 /**
  * Calculate error rate over the last 5-minute window.
- * Uses totalRequests from metrics.ts as the denominator.
+ * Uses windowed request count as the denominator.
  * Prunes stale entries before reading to keep memory bounded.
  */
 function calculateErrorRate(provider?: string): number {
 	pruneStaleErrors();
+	pruneStaleRequests();
 
 	const windowErrors = provider
 		? recentErrors.filter((e) => e.provider === provider)
 		: recentErrors;
 
-	const total = getTotalRequests();
+	const total = recentRequests.length;
 	if (total === 0) return 0;
 
 	return windowErrors.length / total;
@@ -206,6 +222,10 @@ export function recordError(
 
 	// Prune stale entries before adding to keep memory bounded
 	pruneStaleErrors();
+	pruneStaleRequests();
+
+	// Track this request
+	recentRequests.push(Date.now());
 
 	// Add to rolling window
 	const entry: TimestampedError = {
@@ -233,6 +253,10 @@ export function recordError(
 export function recordSuccess(provider: ProviderName): void {
 	const stats = ensureProviderStats(provider);
 	stats.consecutiveFailures = 0;
+
+	// Track this request for error rate calculation
+	pruneStaleRequests();
+	recentRequests.push(Date.now());
 }
 
 /**

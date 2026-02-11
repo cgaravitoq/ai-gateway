@@ -95,15 +95,13 @@ export class ProviderRegistry {
 	}
 
 	/** Record a failed request — may trip the circuit breaker. */
-	reportError(provider: ProviderName, modelId: string, error: unknown): void {
+	reportError(provider: ProviderName, _modelId: string, error: unknown): void {
 		const entry = this.providers.get(provider);
 		if (!entry) return;
 
 		const now = Date.now();
 		entry.consecutiveErrors += 1;
 		entry.lastErrorAt = now;
-
-		latencyTracker.recordLatency(provider, modelId, 0, 0, false);
 
 		// Handle probe failure during half-open state
 		if (entry.halfOpenProbeInFlight && entry.consecutiveErrors >= CIRCUIT_BREAKER_THRESHOLD) {

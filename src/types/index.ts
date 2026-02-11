@@ -5,13 +5,13 @@ import { z } from "zod/v4";
 /** Zod schema for a single chat message */
 export const MessageSchema = z.object({
 	role: z.enum(["system", "user", "assistant"]),
-	content: z.string(),
+	content: z.string().max(100000),
 });
 
 /** Zod schema for the POST /v1/chat/completions request body */
 export const ChatCompletionRequestSchema = z.object({
-	model: z.string(),
-	messages: z.array(MessageSchema).min(1),
+	model: z.string().max(128),
+	messages: z.array(MessageSchema).min(1).max(256),
 	temperature: z.number().min(0).max(2).optional(),
 	max_tokens: z.number().int().positive().optional(),
 	top_p: z.number().min(0).max(1).optional(),
