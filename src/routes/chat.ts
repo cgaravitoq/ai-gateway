@@ -284,6 +284,10 @@ chat.post(
 		}
 
 		// --- Non-streaming Response ---
+		const generateTimeoutMs = env.ROUTING_TIMEOUT_MS ?? 30_000;
+		const abortController = new AbortController();
+		const generateTimer = setTimeout(() => abortController.abort(), generateTimeoutMs);
+
 		try {
 			const result = await generateText({
 				model: route.model,
@@ -292,7 +296,10 @@ chat.post(
 				maxOutputTokens: max_tokens ?? undefined,
 				topP: top_p ?? undefined,
 				stopSequences,
+				abortSignal: abortController.signal,
 			});
+
+			clearTimeout(generateTimer);
 
 			const inputTokens = result.usage?.inputTokens ?? 0;
 			const outputTokens = result.usage?.outputTokens ?? 0;
@@ -323,6 +330,7 @@ chat.post(
 
 			return c.json(response);
 		} catch (error) {
+			clearTimeout(generateTimer);
 			recordSpanError(llmSpan, error);
 			llmSpan.end();
 			throw error;

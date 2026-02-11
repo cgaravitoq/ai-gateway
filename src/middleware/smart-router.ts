@@ -1,5 +1,6 @@
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { MiddlewareHandler } from "hono";
+import { z } from "zod/v4";
 import type { ProviderName } from "@/config/providers.ts";
 import { logger } from "@/middleware/logging.ts";
 import { modelSelector } from "@/routing/model-selector.ts";
@@ -7,6 +8,18 @@ import { providerRegistry } from "@/routing/provider-registry.ts";
 import { errorTracker } from "@/services/error-tracker.ts";
 import { getTracer } from "@/telemetry/setup.ts";
 import type { RankedProvider, RequestMetadata } from "@/types/routing.ts";
+
+/**
+ * Lightweight schema for routing-relevant body fields.
+ * Uses `.passthrough()` so unrecognized fields are preserved for downstream.
+ */
+const RoutingBodySchema = z
+	.object({
+		model: z.string().optional(),
+		stream: z.boolean().optional(),
+		max_tokens: z.number().optional(),
+	})
+	.passthrough();
 
 /**
  * Context keys set by the smart-router middleware.
@@ -44,16 +57,24 @@ export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 	return async (c, next) => {
 		// ── 1. Parse request body ────────────────────────────
 		// We clone the request so the body is still available for downstream handlers.
-		let body: Record<string, unknown>;
+		let rawBody: unknown;
 		try {
-			body = await c.req.json();
+			rawBody = await c.req.json();
 		} catch {
 			// Not a JSON body — let downstream handle the error
 			await next();
 			return;
 		}
 
-		const model = typeof body.model === "string" ? body.model : undefined;
+		const parsed = RoutingBodySchema.safeParse(rawBody);
+		if (!parsed.success) {
+			// Body doesn't match even the minimal schema — let downstream validate
+			await next();
+			return;
+		}
+
+		const body = parsed.data;
+		const model = body.model;
 		if (!model) {
 			// No model field — skip smart routing, let handler deal with validation
 			await next();
@@ -63,8 +84,8 @@ export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 		// ── 2. Build RequestMetadata ────────────────────────
 		const requestMetadata: RequestMetadata = {
 			model,
-			stream: body.stream === true,
-			maxTokens: typeof body.max_tokens === "number" ? body.max_tokens : undefined,
+			stream: body.stream ?? false,
+			maxTokens: body.max_tokens,
 			routingHints: parseRoutingHints(c),
 		};
 
