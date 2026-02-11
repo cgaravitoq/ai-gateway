@@ -53,7 +53,7 @@ export function loadRoutingConfig(): RoutingConfig {
 // ── Model Pricing ─────────────────────────────────────────
 
 /** Default model pricing (static, updated periodically) */
-export const MODEL_PRICING: ModelPricing[] = [
+export const MODEL_PRICING: readonly ModelPricing[] = [
 	// OpenAI
 	pricing("gpt-4o", "openai", 0.0025, 0.01),
 	pricing("gpt-4o-mini", "openai", 0.00015, 0.0006),
@@ -63,7 +63,7 @@ export const MODEL_PRICING: ModelPricing[] = [
 	// Google
 	pricing("gemini-2.0-flash", "google", 0.0001, 0.0004),
 	pricing("gemini-2.0-pro", "google", 0.00125, 0.005),
-];
+] as const;
 
 // ── Routing Rules ─────────────────────────────────────────
 

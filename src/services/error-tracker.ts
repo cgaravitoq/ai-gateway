@@ -78,9 +78,7 @@ const lastAlertAt: Record<string, number> = {};
 
 /**
  * Remove entries from `recentErrors` that are older than `ERROR_RATE_WINDOW_MS`.
- * Also prunes stale keys from `providerStats` where `lastError` has aged out and
- * all counters sit at 0 consecutive failures. Called before every read to keep
- * memory bounded even under sustained traffic.
+ * Called before every read to keep memory bounded even under sustained traffic.
  */
 function pruneStaleErrors(): void {
 	const cutoff = Date.now() - ERROR_RATE_WINDOW_MS;
@@ -167,6 +165,15 @@ function checkAlerts(provider: ProviderName | "unknown"): void {
 
 /**
  * Record an error from a provider request.
+ *
+ * Updates per-provider stats (4xx/5xx/timeouts, consecutive failures),
+ * appends to the rolling error window, and triggers threshold-based alerts
+ * when the error rate exceeds {@link ALERT_THRESHOLD}.
+ *
+ * @param provider   - The provider that returned the error, or `"unknown"`.
+ * @param statusCode - HTTP status code from the upstream response.
+ * @param message    - Human-readable error description.
+ * @param isTimeout  - Whether this error was caused by a timeout.
  */
 export function recordError(
 	provider: ProviderName | "unknown",
@@ -229,7 +236,10 @@ export function recordSuccess(provider: ProviderName): void {
 }
 
 /**
- * Get the full error state summary.
+ * Get a snapshot of the full error tracking state.
+ *
+ * Returns global totals, per-provider breakdowns, and the rolling window
+ * of recent errors. Safe to call frequently — prunes stale entries lazily.
  */
 export function getErrorSummary(): ErrorSummary {
 	return {
@@ -243,7 +253,14 @@ export function getErrorSummary(): ErrorSummary {
 }
 
 /**
- * Get health status for a specific provider.
+ * Get the current health status for a specific provider.
+ *
+ * A provider is considered unhealthy if its 5-minute error rate exceeds
+ * {@link ALERT_THRESHOLD} **or** it has accumulated
+ * {@link UNHEALTHY_CONSECUTIVE_FAILURES} consecutive failures.
+ *
+ * @param provider - The provider to check.
+ * @returns Health status including error rate and consecutive failure count.
  */
 export function getProviderHealth(provider: ProviderName): ProviderHealth {
 	const stats = providerStats[provider];

@@ -9,7 +9,7 @@ import type { ModelCapability, RuleCondition } from "@/types/routing.ts";
 export function evaluateCostRule(
 	condition: Extract<RuleCondition, { type: "cost" }>,
 	provider: ProviderState,
-	pricing: ModelPricing[],
+	pricing: readonly ModelPricing[],
 ): boolean {
 	const providerPricing = pricing.filter((p) => p.provider === provider.id);
 
@@ -62,7 +62,7 @@ export function evaluateCapabilityRule(
 export function evaluateCondition(
 	condition: RuleCondition,
 	provider: ProviderState,
-	pricing: ModelPricing[],
+	pricing: readonly ModelPricing[],
 	providerCapabilities: ModelCapability[],
 ): boolean {
 	switch (condition.type) {

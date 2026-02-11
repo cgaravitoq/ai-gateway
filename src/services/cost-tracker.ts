@@ -129,8 +129,20 @@ function checkCostAlerts(): void {
 // ── Public API ───────────────────────────────────────────
 
 /**
- * Calculate cost and record it for a completed request.
- * Returns the computed CostRecord for use in logging / response headers.
+ * Calculate USD cost and record it for a completed LLM request.
+ *
+ * Looks up per-model pricing, computes input + output cost, then updates:
+ * - Global totals (cost, tokens).
+ * - Per-provider aggregates.
+ * - Per-model aggregates (with LRU eviction at {@link MAX_MODEL_ENTRIES}).
+ * - Rolling window of recent requests.
+ * - Tiered cost alerts (fires once per tier per 24 h period).
+ *
+ * @param provider     - The provider that served the request.
+ * @param modelId      - The specific model used (e.g. `"gpt-4o"`).
+ * @param inputTokens  - Number of prompt tokens consumed.
+ * @param outputTokens - Number of completion tokens generated.
+ * @returns The computed {@link CostRecord}, useful for logging or response headers.
  */
 export function recordCost(
 	provider: ProviderName,
@@ -185,7 +197,13 @@ export function recordCost(
 	return record;
 }
 
-/** Get a snapshot of cost tracking data */
+/**
+ * Get a point-in-time snapshot of all cost tracking data.
+ *
+ * Returns deep copies of internal state so callers cannot mutate the
+ * singleton. Includes global totals, per-provider and per-model breakdowns,
+ * and the rolling window of recent requests.
+ */
 export function getCostSummary(): CostSummary {
 	return {
 		totalCostUsd: Math.round(totalCostUsd * USD_PRECISION) / USD_PRECISION,

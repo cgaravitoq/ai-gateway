@@ -13,6 +13,7 @@ import { health } from "@/routes/health.ts";
 import { ensureVectorIndex } from "@/services/cache/index-setup.ts";
 import { connectRedis, disconnectRedis } from "@/services/cache/redis.ts";
 import { initTelemetry, shutdownTelemetry } from "@/telemetry/setup.ts";
+import packageJson from "../package.json";
 
 // Initialize OpenTelemetry BEFORE creating the app so spans are captured from the start
 initTelemetry();
@@ -40,7 +41,7 @@ app.route("/", chat);
 app.get("/", (c) => {
 	return c.json({
 		name: "ai-gateway",
-		version: "0.1.0",
+		version: packageJson.version,
 		endpoints: ["/v1/chat/completions", "/health", "/ready", "/metrics", "/metrics/costs"],
 	});
 });
@@ -53,6 +54,7 @@ app.notFound((c) => {
 				message: "Not Found",
 				type: "invalid_request_error",
 				code: "not_found",
+				path: c.req.path,
 			},
 		},
 		404,

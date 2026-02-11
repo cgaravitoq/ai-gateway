@@ -26,11 +26,19 @@ export interface SmartRouterEnv {
 /**
  * Smart routing middleware — replaces the basic static router.
  *
- * 1. Parses the `model` field from the JSON request body.
- * 2. Builds `RequestMetadata` from the body + request headers.
+ * Intercepts every `/v1/*` request to select the optimal LLM provider
+ * based on the requested model, routing strategy, and live provider health.
+ *
+ * **Lifecycle:**
+ * 1. Parses the `model` field from the JSON request body (gracefully skips
+ *    non-JSON bodies so downstream validation can report the error).
+ * 2. Builds {@link RequestMetadata} from the body + custom `x-routing-*` headers.
  * 3. Calls `modelSelector.selectProvider()` to pick the best provider.
  * 4. Sets `c.set('selectedProvider', ...)` for downstream handlers.
- * 5. After `next()`: records latency and outcome to the provider registry.
+ * 5. After `next()`: records latency and outcome to the provider registry
+ *    and error tracker.
+ *
+ * @returns Hono middleware handler bound to {@link SmartRouterEnv}.
  */
 export function smartRouter(): MiddlewareHandler<SmartRouterEnv> {
 	return async (c, next) => {
@@ -197,6 +205,12 @@ function parseRoutingHints(c: Parameters<MiddlewareHandler>[0]): RequestMetadata
 	};
 }
 
+/**
+ * Type guard that narrows an unknown value to one of the supported routing strategies.
+ *
+ * Used to safely validate the `x-routing-strategy` header before passing it
+ * into the routing engine.
+ */
 function isValidStrategy(value: unknown): value is "cost" | "latency" | "balanced" | "capability" {
 	return typeof value === "string" && ["cost", "latency", "balanced", "capability"].includes(value);
 }

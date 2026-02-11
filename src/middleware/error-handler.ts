@@ -1,15 +1,49 @@
 import { APICallError } from "ai";
 import type { ErrorHandler } from "hono";
 import { env } from "@/config/env.ts";
-import type { ProviderName } from "@/config/providers.ts";
+import { PROVIDER_NAMES, type ProviderName } from "@/config/providers.ts";
 import { FallbackTimeoutError } from "@/routing/fallback-handler.ts";
 import { errorTracker } from "@/services/error-tracker.ts";
 import type { GatewayError } from "@/types/index.ts";
 import type { RankedProvider } from "@/types/routing.ts";
 import { logger } from "./logging.ts";
 
+// ── Helpers ──────────────────────────────────────────────
+
+/** Record an error to the error tracker, resolving the provider from context or error. */
+function trackError(
+	provider: ProviderName | "unknown",
+	statusCode: number,
+	message: string,
+	isTimeout: boolean,
+): void {
+	errorTracker.recordError(provider, statusCode, message, isTimeout);
+}
+
+/** Resolve the effective provider name from the routing context or an API error. */
+function resolveProvider(
+	contextProvider: RankedProvider | undefined,
+	apiError?: APICallError,
+): ProviderName | "unknown" {
+	if (contextProvider) return contextProvider.provider;
+	if (apiError) return extractProviderFromError(apiError) ?? "unknown";
+	return "unknown";
+}
+
+// ── Error Handler ────────────────────────────────────────
+
 /**
- * Global error handler that normalizes all errors to OpenAI-compatible format.
+ * Global Hono error handler that normalizes all errors to OpenAI-compatible JSON format.
+ *
+ * Handles three error categories:
+ * 1. **Vercel AI SDK `APICallError`** — maps the upstream HTTP status and provider
+ *    info to an OpenAI-style error envelope.
+ * 2. **`FallbackTimeoutError`** — gateway-level timeout during provider fallback,
+ *    returned as HTTP 504.
+ * 3. **Generic errors** — catch-all that masks error details in production.
+ *
+ * Every error is recorded to the error tracker for per-provider health monitoring.
+ *
  * Inspired by LiteLLM's error normalization strategy.
  */
 export const errorHandler: ErrorHandler = (err, c) => {
@@ -28,9 +62,9 @@ export const errorHandler: ErrorHandler = (err, c) => {
 	// Handle Vercel AI SDK API errors (from providers)
 	if (err instanceof APICallError) {
 		const status = err.statusCode ?? 500;
-		const provider = contextProvider?.provider ?? extractProviderFromError(err) ?? "unknown";
+		const provider = resolveProvider(contextProvider, err);
 
-		errorTracker.recordError(provider as ProviderName | "unknown", status, err.message, isTimeout);
+		trackError(provider, status, err.message, isTimeout);
 
 		const errorResponse: GatewayError = {
 			error: {
@@ -45,14 +79,9 @@ export const errorHandler: ErrorHandler = (err, c) => {
 
 	// Determine status code for non-API errors
 	const genericStatus = isTimeout ? 504 : (extractStatusCode(err) ?? 500);
+	const provider = resolveProvider(contextProvider);
 
-	const provider = contextProvider?.provider ?? "unknown";
-	errorTracker.recordError(
-		provider as ProviderName | "unknown",
-		genericStatus,
-		err.message,
-		isTimeout,
-	);
+	trackError(provider, genericStatus, err.message, isTimeout);
 
 	// Handle generic errors
 	const errorResponse: GatewayError = {
@@ -94,12 +123,35 @@ function extractStatusCode(err: Error): number | undefined {
 	return undefined;
 }
 
-/** Try to extract provider name from API error */
-function extractProviderFromError(err: APICallError): string | undefined {
+/**
+ * Type guard that checks whether a string is a known {@link ProviderName}.
+ */
+function isProviderName(value: string): value is ProviderName {
+	return (PROVIDER_NAMES as readonly string[]).includes(value);
+}
+
+/**
+ * Try to extract a typed provider name from an API error's URL.
+ *
+ * Returns a {@link ProviderName} when the URL matches a known provider domain,
+ * or `undefined` if the provider cannot be determined.
+ */
+function extractProviderFromError(err: APICallError): ProviderName | undefined {
 	const url = err.url;
 	if (!url) return undefined;
-	if (url.includes("openai.com")) return "openai";
-	if (url.includes("anthropic.com")) return "anthropic";
-	if (url.includes("googleapis.com") || url.includes("generativelanguage")) return "google";
+
+	const mapping: Record<string, string> = {
+		"openai.com": "openai",
+		"anthropic.com": "anthropic",
+		"googleapis.com": "google",
+		generativelanguage: "google",
+	};
+
+	for (const [domain, provider] of Object.entries(mapping)) {
+		if (url.includes(domain) && isProviderName(provider)) {
+			return provider;
+		}
+	}
+
 	return undefined;
 }
