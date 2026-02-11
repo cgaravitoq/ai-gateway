@@ -3,6 +3,8 @@ import { cacheConfig } from "@/config/cache.ts";
 import { env } from "@/config/env.ts";
 import { logger } from "@/middleware/logging.ts";
 
+const EMBEDDING_TIMEOUT_MS = 10_000;
+
 let openaiClient: OpenAI | null = null;
 
 /**
@@ -24,24 +26,39 @@ function getOpenAIClient(): OpenAI {
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
 	const client = getOpenAIClient();
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), EMBEDDING_TIMEOUT_MS);
 
-	const start = Date.now();
+	try {
+		const start = Date.now();
 
-	const response = await client.embeddings.create({
-		model: cacheConfig.embeddingModel,
-		input: text,
-		dimensions: cacheConfig.embeddingDimensions,
-	});
+		const response = await client.embeddings.create(
+			{
+				model: cacheConfig.embeddingModel,
+				input: text,
+				dimensions: cacheConfig.embeddingDimensions,
+			},
+			{ signal: controller.signal },
+		);
 
-	const duration = Date.now() - start;
-	logger.debug({ model: cacheConfig.embeddingModel, duration }, "Embedding generated");
+		const duration = Date.now() - start;
+		logger.debug({ model: cacheConfig.embeddingModel, duration }, "Embedding generated");
 
-	const embedding = response.data[0]?.embedding;
-	if (!embedding) {
-		throw new Error("No embedding returned from OpenAI API");
+		const embedding = response.data[0]?.embedding;
+		if (!embedding) {
+			throw new Error("No embedding returned from OpenAI API");
+		}
+
+		return embedding;
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			logger.warn({ timeoutMs: EMBEDDING_TIMEOUT_MS }, "Embedding generation timed out");
+			throw new Error("Embedding generation timed out");
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
 	}
-
-	return embedding;
 }
 
 /**

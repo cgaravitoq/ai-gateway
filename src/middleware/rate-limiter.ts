@@ -91,22 +91,38 @@ export function rateLimiter(): MiddlewareHandler {
 			const body = await c.req.json();
 			model = body.model;
 		} catch {
-			// Malformed body — let downstream route handler deal with it
-			await next();
-			return;
+			const errorResponse: GatewayError = {
+				error: {
+					message: "Invalid request body: expected valid JSON",
+					type: "invalid_request_error",
+					code: "invalid_body",
+				},
+			};
+			return c.json(errorResponse, 400);
 		}
 
 		if (!model) {
-			await next();
-			return;
+			const errorResponse: GatewayError = {
+				error: {
+					message: "model field is required",
+					type: "invalid_request_error",
+					code: "missing_model",
+				},
+			};
+			return c.json(errorResponse, 400);
 		}
 
 		// --- Detect provider from model ID ---
 		const provider = detectProvider(model);
 		if (!provider) {
-			// Unknown provider — skip rate limiting, let routing handle the error
-			await next();
-			return;
+			const errorResponse: GatewayError = {
+				error: {
+					message: `Unknown model provider for model '${model}'`,
+					type: "invalid_request_error",
+					code: "unknown_provider",
+				},
+			};
+			return c.json(errorResponse, 400);
 		}
 
 		// --- Token bucket check ---
