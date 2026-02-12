@@ -1,4 +1,4 @@
-import type { ProviderName } from "@/services/providers/index.ts";
+import type { ProviderName } from "@/config/providers.ts";
 
 /** A single provider + model pair used as a routing target. */
 export interface RouteTarget {
