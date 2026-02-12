@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { booleanEnv } from "./boolean-env";
 
 /**
  * Centralized environment variables — validated with Zod at startup.
@@ -27,10 +28,7 @@ const envSchema = z.object({
 
 	// ── Redis / Cache ──────────────────────────────────────────
 	REDIS_URL: z.string().default("redis://localhost:6379"),
-	CACHE_ENABLED: z
-		.string()
-		.default("true")
-		.transform((v) => v !== "false"),
+	CACHE_ENABLED: booleanEnv,
 	CACHE_TTL_SECONDS: z.coerce.number().positive().default(3600),
 	/**
 	 * Cosine distance threshold for cache hits.
@@ -52,10 +50,7 @@ const envSchema = z.object({
 	ROUTING_LATENCY_WINDOW: z.coerce.number().int().positive().default(100),
 
 	// ── Rate Limiting (token bucket) ───────────────────────────
-	RATE_LIMIT_ENABLED: z
-		.string()
-		.default("true")
-		.transform((v) => v !== "false"),
+	RATE_LIMIT_ENABLED: booleanEnv,
 	RATE_LIMIT_MAX_TOKENS: z.coerce.number().positive().default(60),
 	RATE_LIMIT_REFILL_RATE: z.coerce.number().positive().default(1),
 	/** Per-provider overrides (optional) */
