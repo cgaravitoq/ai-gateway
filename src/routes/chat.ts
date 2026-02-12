@@ -203,7 +203,7 @@ chat.post(
 			const created = Math.floor(Date.now() / 1000);
 
 			// Abort the stream if the provider stalls beyond the configured timeout.
-			const streamTimeoutMs = env.ROUTING_TIMEOUT_MS ?? 30_000;
+			const streamTimeoutMs = env.ROUTING_TIMEOUT_MS ?? 60_000;
 			const abortController = new AbortController();
 			const streamTimer = setTimeout(() => abortController.abort(), streamTimeoutMs);
 
@@ -350,7 +350,7 @@ chat.post(
 		}
 
 		// --- Non-streaming Response ---
-		const generateTimeoutMs = env.ROUTING_TIMEOUT_MS ?? 30_000;
+		const generateTimeoutMs = env.ROUTING_TIMEOUT_MS ?? 60_000;
 		const abortController = new AbortController();
 		const generateTimer = setTimeout(() => abortController.abort(), generateTimeoutMs);
 

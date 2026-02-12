@@ -11,8 +11,8 @@ export { MODEL_PRICING } from "@/config/models.ts";
 export const RoutingConfigSchema = z.object({
 	/** Default routing strategy */
 	defaultStrategy: z.enum(["cost", "latency", "balanced", "capability"]).default("balanced"),
-	/** Global request timeout (ms) */
-	defaultTimeoutMs: z.number().positive().default(30_000),
+	/** Global request timeout (ms) — should match ROUTING_TIMEOUT_MS from env */
+	defaultTimeoutMs: z.number().positive().default(60_000),
 	/** Maximum retries per request */
 	maxRetries: z.number().int().min(0).max(5).default(2),
 	/** Retry backoff base (ms) — actual delay = base * 2^attempt */
