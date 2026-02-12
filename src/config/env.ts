@@ -38,6 +38,16 @@ const envSchema = z.object({
 	CACHE_SIMILARITY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.15),
 
 	// ── Embedding Model ────────────────────────────────────────
+	/**
+	 * ⚠️  EMBEDDING_MODEL and EMBEDDING_DIMENSIONS must stay in sync.
+	 * If you change the model, update dimensions to match — otherwise
+	 * the Redis vector index will break silently at query time.
+	 *
+	 * Known defaults:
+	 *   text-embedding-3-small → 1536
+	 *   text-embedding-3-large → 3072
+	 *   text-embedding-ada-002 → 1536
+	 */
 	EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
 	EMBEDDING_DIMENSIONS: z.coerce.number().positive().default(1536),
 
@@ -69,6 +79,16 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+/**
+ * Known embedding model → native dimension mapping.
+ * Used at startup to warn when EMBEDDING_DIMENSIONS doesn't match the model.
+ */
+const KNOWN_DIMENSIONS: Record<string, number> = {
+	"text-embedding-3-small": 1536,
+	"text-embedding-3-large": 3072,
+	"text-embedding-ada-002": 1536,
+};
+
 function loadEnv(): Env {
 	const result = envSchema.safeParse(process.env);
 
@@ -78,7 +98,20 @@ function loadEnv(): Env {
 		process.exit(1);
 	}
 
-	return result.data;
+	const env = result.data;
+
+	// ── Dimension ↔ model consistency check ───────────────────
+	const expectedDims = KNOWN_DIMENSIONS[env.EMBEDDING_MODEL];
+	if (expectedDims !== undefined && env.EMBEDDING_DIMENSIONS !== expectedDims) {
+		console.warn(
+			`[env] ⚠️  EMBEDDING_DIMENSIONS=${env.EMBEDDING_DIMENSIONS} does not match the expected ` +
+				`dimensions (${expectedDims}) for model "${env.EMBEDDING_MODEL}". ` +
+				"This will cause Redis vector index mismatches. " +
+				"Update EMBEDDING_DIMENSIONS or EMBEDDING_MODEL to match.",
+		);
+	}
+
+	return env;
 }
 
 /** Validated environment variables — import this instead of using process.env */

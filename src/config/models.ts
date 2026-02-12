@@ -39,7 +39,15 @@ const ModelsConfigSchema = z.object({
 
 // ── Validate at startup ──────────────────────────────────
 
-const parsed = ModelsConfigSchema.parse(modelsJson);
+const result = ModelsConfigSchema.safeParse(modelsJson);
+
+if (!result.success) {
+	console.error("Invalid models.json configuration:");
+	console.error(JSON.stringify(result.error.format(), null, 2));
+	process.exit(1);
+}
+
+const parsed = result.data;
 
 // ── Derived data structures ──────────────────────────────
 
