@@ -10,6 +10,8 @@
 		"typecheck": "bunx tsc --noEmit",
 		"lint": "bunx biome check .",
 		"format": "bunx biome format --write .",
+		"test": "bun test",
+		"ci": "bun run lint && bun run typecheck && bun test",
 		"check": "bunx biome check --write ."
 	},
 	"devDependencies": {

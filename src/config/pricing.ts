@@ -6,7 +6,7 @@
  * Core model prices are defined in `models.json`; legacy aliases live below.
  */
 
-import { getModelPricing as getCoreModelPricing } from "@/config/models.ts";
+import { DEFAULT_PRICING, getModelPricing as getCoreModelPricing } from "@/config/models.ts";
 import type { ProviderName } from "@/config/providers.ts";
 import type { ModelPricing } from "@/types/metrics.ts";
 
@@ -48,7 +48,7 @@ const LEGACY_PRICING: Record<string, ModelPricing> = {
 export function getModelPricing(modelId: string): ModelPricing {
 	// Try core config (models.json) first
 	const core = getCoreModelPricing(modelId);
-	if (core.modelId !== "unknown") {
+	if (core) {
 		return core;
 	}
 
@@ -58,6 +58,6 @@ export function getModelPricing(modelId: string): ModelPricing {
 		return legacy;
 	}
 
-	// Default fallback (returned by getCoreModelPricing with modelId patched)
-	return core;
+	// Default fallback with the requested modelId for logging purposes
+	return { ...DEFAULT_PRICING, modelId };
 }
