@@ -85,16 +85,17 @@ const DEFAULT_PRICING: ModelPricing = {
 
 /**
  * Look up pricing for a model by ID. Returns the JSON-defined pricing
- * if available, otherwise a conservative default fallback.
+ * if available, otherwise `null` so callers can fall back to their own logic.
  */
-export function getModelPricing(modelId: string): ModelPricing {
-	const pricing = PRICING_TABLE[modelId];
-	if (pricing) {
-		return pricing;
-	}
-	// Return fallback with the actual modelId for logging purposes
-	return { ...DEFAULT_PRICING, modelId };
+export function getModelPricing(modelId: string): ModelPricing | null {
+	return PRICING_TABLE[modelId] ?? null;
 }
+
+/**
+ * Default fallback pricing when no model-specific pricing is found anywhere.
+ * Exported so callers (e.g. pricing.ts) can use a safe conservative default.
+ */
+export { DEFAULT_PRICING };
 
 /**
  * Look up capabilities for a model by provider and model ID.
