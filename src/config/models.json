@@ -15,7 +15,7 @@
 			"pricing": { "inputPer1k": 0.003, "outputPer1k": 0.015 },
 			"capabilities": ["streaming", "vision", "function_calling", "long_context"]
 		},
-		"claude-haiku-3-5": {
+		"claude-3-5-haiku-20241022": {
 			"provider": "anthropic",
 			"pricing": { "inputPer1k": 0.0008, "outputPer1k": 0.004 },
 			"capabilities": ["streaming", "function_calling"]
@@ -25,9 +25,9 @@
 			"pricing": { "inputPer1k": 0.0001, "outputPer1k": 0.0004 },
 			"capabilities": ["streaming", "function_calling", "json_mode"]
 		},
-		"gemini-2.0-pro": {
+		"gemini-2.5-pro": {
 			"provider": "google",
-			"pricing": { "inputPer1k": 0.00125, "outputPer1k": 0.005 },
+			"pricing": { "inputPer1k": 0.00125, "outputPer1k": 0.01 },
 			"capabilities": ["streaming", "vision", "function_calling", "json_mode", "long_context"]
 		}
 	}

@@ -390,9 +390,9 @@ All errors follow the OpenAI error format:
 | OpenAI     | `gpt-4o-mini`                  | GPT-4o Mini (fast)     |
 | OpenAI     | `gpt-3.5-turbo`                | GPT-3.5 Turbo          |
 | Anthropic  | `claude-sonnet-4-20250514`     | Claude Sonnet 4        |
-| Anthropic  | `claude-haiku-3-5`             | Claude 3.5 Haiku       |
+| Anthropic  | `claude-3-5-haiku-20241022`    | Claude 3.5 Haiku       |
 | Google     | `gemini-2.0-flash`             | Gemini 2.0 Flash       |
-| Google     | `gemini-2.0-pro`               | Gemini 2.0 Pro         |
+| Google     | `gemini-2.5-pro`               | Gemini 2.5 Pro         |
 | Google     | `gemini-1.5-pro`               | Gemini 1.5 Pro         |
 | Google     | `gemini-1.5-flash`             | Gemini 1.5 Flash       |
 
