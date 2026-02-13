@@ -40,15 +40,16 @@ export function calculatePercentiles(
 	percentiles: number[],
 ): Map<number, number> {
 	const result = new Map<number, number>();
-	if (samples.length === 0) {
-		for (const p of percentiles) result.set(p, 0);
-		return result;
-	}
-
+	
 	for (const p of percentiles) {
 		if (p < 0 || p > 100) {
 			throw new RangeError(`percentile must be 0–100, got ${p}`);
 		}
+	}
+	
+	if (samples.length === 0) {
+		for (const p of percentiles) result.set(p, 0);
+		return result;
 	}
 
 	const sorted = [...samples].sort((a, b) => a - b);
